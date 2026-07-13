@@ -208,6 +208,7 @@ export async function resolveInput(input: ScannerInput, dependencies: ResolveDep
         }
 
         const lockEntries = packageLock?.packages ?? {};
+        let lockfileRangeFallbacks = 0;
         for (const [name, constraint] of Object.entries(constraints)) {
             discovered += 1;
             const exact = lockEntries[`node_modules/${name}`]?.version;
@@ -229,10 +230,14 @@ export async function resolveInput(input: ScannerInput, dependencies: ResolveDep
             try {
                 const resolved = await resolveVersion(name, constraint, dependencies.registry);
                 targets.push({ name, version: resolved.version, sources: ['manifest'], resolvedFrom: 'range' });
+                if (packageLock) lockfileRangeFallbacks += 1;
             } catch (error) {
                 unresolved += 1;
                 errors.push(toResolutionError(name, constraint, 'manifest', error));
             }
+        }
+        if (lockfileRangeFallbacks > 0) {
+            statusNotes.push(`package-lock.json lacked exact root entries for ${lockfileRangeFallbacks} direct ${lockfileRangeFallbacks === 1 ? 'dependency' : 'dependencies'}; resolved as latest-matching`);
         }
 
         if (input.includeTransitive && packageLock) {

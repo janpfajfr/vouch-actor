@@ -66,6 +66,21 @@ describe('resolveInput lockfile policy', () => {
         ]);
     });
 
+    it('reports direct dependencies missing exact root lockfile entries', async () => {
+        const files = {
+            [`${base}package.json`]: { dependencies: { lodash: '^4.17.0' } },
+            [`${base}package-lock.json`]: { packages: {
+                '': {},
+                'node_modules/.pnpm/lodash@4.17.20/node_modules/lodash': { version: '4.17.20' },
+            } },
+        };
+        const result = await resolveInput(input({ packageJsonUrl: 'https://github.com/acme/app' }), dependencies(files, {
+            lodash: ['4.17.20', '4.17.21'],
+        }));
+        expect(result.targets[0]).toMatchObject({ version: '4.17.21', resolvedFrom: 'range' });
+        expect(result.statusNotes).toContain('package-lock.json lacked exact root entries for 1 direct dependency; resolved as latest-matching');
+    });
+
     it('detects pnpm and uses range mode without transitives', async () => {
         const files = {
             [`${base}package.json`]: { dependencies: { lodash: '^4.17.0' } },
