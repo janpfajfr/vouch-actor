@@ -14,19 +14,17 @@ const suspiciousPatterns: Array<{ pattern: RegExp; label: string }> = [
 
 export function checkInstallScripts(pkgMeta: RegistryVersion, context: Record<string, never>): Finding[] {
     void context;
-    const findings: Finding[] = [];
-    for (const lifecycle of lifecycleNames) {
+    return lifecycleNames.flatMap((lifecycle): Finding[] => {
         const script = pkgMeta.scripts?.[lifecycle];
-        if (!script) continue;
+        if (!script) return [];
         const suspicious = suspiciousPatterns.find(({ pattern }) => pattern.test(script));
-        findings.push({
+        return [{
             check: 'installScripts',
             severity: suspicious ? 'high' : 'medium',
             summary: suspicious
                 ? `${lifecycle} ${suspicious.label}`
                 : `${lifecycle} lifecycle script runs during installation`,
             detail: `${lifecycle}: ${script}`,
-        });
-    }
-    return findings;
+        }];
+    });
 }

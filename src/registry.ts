@@ -37,17 +37,18 @@ export async function fetchWithRetry(
     for (let attempt = 0; attempt < 3; attempt += 1) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), timeoutMs);
+        let lastError: unknown;
         try {
             const response = await fetcher(url, { ...init, signal: controller.signal });
             if (response.ok) return response;
-            const error = new HttpError(response.status, url);
-            if (!retryableStatus(response.status) || attempt === 2) throw error;
+            lastError = new HttpError(response.status, url);
         } catch (error) {
-            if (error instanceof HttpError && (!retryableStatus(error.status) || attempt === 2)) throw error;
-            if (attempt === 2) throw error;
+            lastError = error;
         } finally {
             clearTimeout(timeout);
         }
+        if (lastError instanceof HttpError && !retryableStatus(lastError.status)) throw lastError;
+        if (attempt === 2) throw lastError;
         const backoff = 200 * (2 ** attempt) + Math.floor(random() * 100);
         await sleep(backoff);
     }

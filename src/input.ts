@@ -11,7 +11,7 @@ function recordFrom(value: unknown): Record<string, unknown> {
 
 function optionalInteger(value: unknown, field: string, minimum: number, maximum: number): number | undefined {
     if (value === undefined) return undefined;
-    if (!Number.isInteger(value) || typeof value !== 'number' || value < minimum || value > maximum) {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < minimum || value > maximum) {
         throw new Error(`${field} must be an integer between ${minimum} and ${maximum}`);
     }
     return value;

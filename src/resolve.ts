@@ -1,6 +1,6 @@
 import { maxSatisfying, valid } from 'semver';
 
-import type { RegistryClient } from './registry.js';
+import { HttpError, type RegistryClient } from './registry.js';
 import type {
     LockfileKind,
     ResolvedFrom,
@@ -76,7 +76,7 @@ function manifestUrls(value: string): ManifestUrls {
 async function optionalRemote(fetchRemote: RemoteFetch, url: string): Promise<Response | undefined> {
     const response = await fetchRemote(url);
     if (response.status === 404) return undefined;
-    if (!response.ok) throw new Error(`HTTP ${response.status} from ${url}`);
+    if (!response.ok) throw new HttpError(response.status, url);
     return response;
 }
 
