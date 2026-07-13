@@ -4,27 +4,21 @@ import { checkOsv } from './checks/osv.js';
 import { checkProvenance } from './checks/provenance.js';
 import type { OsvVulnerability } from './osv-client.js';
 import { HttpError, type RegistryClient } from './registry.js';
+import { calculateRiskScore, riskLevelFor } from './score.js';
 import type {
     CheckName,
     DatasetItem,
     Finding,
     ResolvedTarget,
-    RiskLevel,
 } from './types.js';
 
 interface ScanOptions {
     registry: RegistryClient;
     checks: CheckName[];
     now?: () => Date;
-    score: (findings: Finding[], attested: boolean) => number;
+    score?: (findings: Finding[], attested: boolean) => number;
     concurrency?: number;
     osvVulnerabilities?: Map<string, OsvVulnerability[]>;
-}
-
-function riskLevel(score: number): RiskLevel {
-    if (score >= 50) return 'high';
-    if (score >= 20) return 'medium';
-    return 'low';
 }
 
 function errorCode(error: unknown): string {
@@ -58,7 +52,7 @@ async function scanTarget(target: ResolvedTarget, options: ScanOptions, scannedA
                     });
             }
         });
-        const riskScore = options.score(findings, attestation.attested);
+        const riskScore = (options.score ?? calculateRiskScore)(findings, attestation.attested);
         const maintainers = versionMeta.maintainers ?? packument.maintainers ?? [];
         return {
             status: 'scanned',
@@ -67,7 +61,7 @@ async function scanTarget(target: ResolvedTarget, options: ScanOptions, scannedA
             sources: target.sources,
             resolvedFrom: target.resolvedFrom,
             riskScore,
-            riskLevel: riskLevel(riskScore),
+            riskLevel: riskLevelFor(riskScore),
             findings,
             findingCount: findings.length,
             provenance: { attested: attestation.attested },
