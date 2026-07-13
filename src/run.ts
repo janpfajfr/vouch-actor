@@ -49,10 +49,16 @@ export async function runActor(actor: ActorAdapter, dependencies: RunDependencie
         return;
     }
 
-    const resolution = await resolveInput(input, {
-        registry: dependencies.registry,
-        fetchRemote: dependencies.fetchRemote,
-    });
+    let resolution;
+    try {
+        resolution = await resolveInput(input, {
+            registry: dependencies.registry,
+            fetchRemote: dependencies.fetchRemote,
+        });
+    } catch (error) {
+        await actor.fail(`Unable to resolve input: ${error instanceof Error ? error.message : 'unknown error'}`);
+        return;
+    }
     const notes = [...resolution.statusNotes];
     let osvVulnerabilities = new Map<string, OsvVulnerability[]>();
     if (input.checks.includes('osvVulns') && resolution.targets.length > 0) {

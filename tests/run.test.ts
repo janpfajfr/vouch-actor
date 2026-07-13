@@ -44,6 +44,12 @@ const runDependencies = (files: Record<string, unknown> = {}) => ({
 });
 
 describe('runActor', () => {
+    it('fails clearly when a remote package.json cannot be resolved', async () => {
+        const fixture = actor({ packageJsonUrl: 'https://github.com/acme/missing' });
+        await expect(runActor(fixture.adapter, runDependencies())).resolves.toBeUndefined();
+        expect(fixture.events.at(-1)).toContain('package.json not found');
+    });
+
     it('pushes data before failing a threshold breach', async () => {
         const fixture = actor({ packages: ['dangerous@1.0.0'], checks: ['installScripts'], failThreshold: 25 });
         await runActor(fixture.adapter, runDependencies());
