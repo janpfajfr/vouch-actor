@@ -89,4 +89,19 @@ describe('scanTargets install-script slice', () => {
         });
         expect(maximum).toBe(5);
     });
+
+    it('dispatches selected provenance and maintainer checks', async () => {
+        const registry = registryWithScripts({});
+        const [item] = await scanTargets([target('unattested')], {
+            registry,
+            checks: ['provenance', 'maintainerSignals'],
+            now: () => new Date('2026-07-13T00:00:00.000Z'),
+            score: (findings) => findings.length * 5,
+        });
+        expect(item?.status).toBe('scanned');
+        if (item?.status === 'scanned') {
+            expect(item.findings).toContainEqual(expect.objectContaining({ check: 'provenance', severity: 'low' }));
+            expect(item.findings.every(({ check }) => check !== 'installScripts')).toBe(true);
+        }
+    });
 });

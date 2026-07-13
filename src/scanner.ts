@@ -1,4 +1,6 @@
 import { checkInstallScripts } from './checks/install-scripts.js';
+import { checkMaintainerSignals } from './checks/maintainer-signals.js';
+import { checkProvenance } from './checks/provenance.js';
 import { HttpError, type RegistryClient } from './registry.js';
 import type {
     CheckName,
@@ -35,9 +37,22 @@ async function scanTarget(target: ResolvedTarget, options: ScanOptions, scannedA
         if (!versionMeta) throw new Error(`VERSION_NOT_FOUND: ${target.name}@${target.version}`);
         const weeklyDownloads = await options.registry.getWeeklyDownloads(target.name);
         const attestation = await options.registry.getAttestations(target.name, target.version);
-        const findings = options.checks.includes('installScripts')
-            ? checkInstallScripts(versionMeta, {})
-            : [];
+        const findings = options.checks.flatMap((check): Finding[] => {
+            switch (check) {
+                case 'installScripts':
+                    return checkInstallScripts(versionMeta, {});
+                case 'provenance':
+                    return checkProvenance(versionMeta, { attested: attestation.attested });
+                case 'maintainerSignals':
+                    return checkMaintainerSignals(versionMeta, {
+                        packument,
+                        version: target.version,
+                        now: new Date(scannedAt),
+                    });
+                case 'osvVulns':
+                    return [];
+            }
+        });
         const riskScore = options.score(findings, attestation.attested);
         const maintainers = versionMeta.maintainers ?? packument.maintainers ?? [];
         return {
