@@ -1,0 +1,39 @@
+import { readFile } from 'node:fs/promises';
+
+import { describe, expect, it } from 'vitest';
+
+async function readJson(path: string): Promise<Record<string, unknown>> {
+    return JSON.parse(await readFile(new URL(`../${path}`, import.meta.url), 'utf8')) as Record<string, unknown>;
+}
+
+describe('Actor schemas', () => {
+    it('links the input and default dataset schemas from actor.json', async () => {
+        const actor = await readJson('.actor/actor.json');
+        expect(actor.input).toBe('./input_schema.json');
+        expect(actor.storages).toEqual({ dataset: './dataset_schema.json' });
+    });
+
+    it('defines every public input with safe bounds and defaults', async () => {
+        const schema = await readJson('.actor/input_schema.json');
+        const properties = schema.properties as Record<string, Record<string, unknown>>;
+        expect(properties.packages).toMatchObject({ type: 'array', editor: 'stringList' });
+        expect(properties.packageJsonUrl).toMatchObject({ type: 'string', editor: 'textfield' });
+        expect(properties.includeTransitive).toMatchObject({ type: 'boolean', default: false });
+        expect(properties.maxPackages).toMatchObject({ type: 'integer', default: 100, minimum: 1, maximum: 500 });
+        expect(properties.checks).toMatchObject({
+            type: 'array',
+            editor: 'select',
+            default: ['installScripts', 'provenance', 'maintainerSignals', 'osvVulns'],
+        });
+        expect(properties.failThreshold).toMatchObject({ type: 'integer', minimum: 0, maximum: 100 });
+    });
+
+    it('defines a concise dataset overview view', async () => {
+        const schema = await readJson('.actor/dataset_schema.json');
+        const views = schema.views as Record<string, Record<string, unknown>>;
+        expect(views.overview).toMatchObject({
+            transformation: { fields: ['package', 'version', 'status', 'riskScore', 'riskLevel', 'findingCount', 'sources', 'resolvedFrom'] },
+            display: { component: 'table' },
+        });
+    });
+});

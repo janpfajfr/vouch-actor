@@ -10,5 +10,9 @@
     "templateId": "ts-empty",
     "generatedBy": "Codex with GPT-5"
   },
-  "dockerfile": "../Dockerfile"
+  "dockerfile": "../Dockerfile",
+  "input": "./input_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  }
 }

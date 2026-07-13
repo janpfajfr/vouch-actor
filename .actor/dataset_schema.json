@@ -1,0 +1,45 @@
+{
+  "actorSpecification": 1,
+  "fields": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "status": { "type": "string", "enum": ["scanned", "error"] },
+      "package": { "type": "string" },
+      "version": { "type": "string" },
+      "sources": { "type": "array", "items": { "type": "string" } },
+      "resolvedFrom": { "type": "string", "enum": ["exact", "tag", "range", "lockfile"] },
+      "riskScore": { "type": "integer", "minimum": 0, "maximum": 100 },
+      "riskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
+      "findingCount": { "type": "integer", "minimum": 0 },
+      "findings": { "type": "array", "items": { "type": "object" } },
+      "provenance": { "type": "object" },
+      "meta": { "type": "object" },
+      "error": { "type": "object" },
+      "scannedAt": { "type": "string", "format": "date-time" }
+    },
+    "required": ["status", "package", "sources", "scannedAt"]
+  },
+  "views": {
+    "overview": {
+      "title": "Overview",
+      "description": "Packages ordered by risk score, with unresolved packages retained as error rows.",
+      "transformation": {
+        "fields": ["package", "version", "status", "riskScore", "riskLevel", "findingCount", "sources", "resolvedFrom"]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "package": { "label": "Package", "format": "text" },
+          "version": { "label": "Version", "format": "text" },
+          "status": { "label": "Status", "format": "text" },
+          "riskScore": { "label": "Risk score", "format": "number" },
+          "riskLevel": { "label": "Risk level", "format": "text" },
+          "findingCount": { "label": "Findings", "format": "number" },
+          "sources": { "label": "Sources", "format": "array" },
+          "resolvedFrom": { "label": "Resolved from", "format": "text" }
+        }
+      }
+    }
+  }
+}
