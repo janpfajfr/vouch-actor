@@ -28,7 +28,7 @@ function errorCode(error: unknown): string {
 }
 
 function hasEmbeddedAttestation(versionMeta: { dist?: { attestations?: unknown; signatures?: unknown[] } }): boolean {
-    return Boolean(versionMeta.dist?.attestations) || (versionMeta.dist?.signatures?.length ?? 0) > 0;
+    return Boolean(versionMeta.dist?.attestations);
 }
 
 async function scanTarget(target: ResolvedTarget, options: ScanOptions, scannedAt: string): Promise<DatasetItem> {

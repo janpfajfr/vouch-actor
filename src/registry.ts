@@ -130,7 +130,8 @@ export function createRegistryClient(dependencies: RegistryDependencies = {}) {
             const url = `https://registry.npmjs.org/-/npm/v1/attestations/${spec}`;
             try {
                 const payload = await jsonObject(await fetchWithRetry(url, {}, retryDependencies), 'npm attestations API');
-                return { attested: Object.keys(payload).length > 0, payload };
+                const attestations = payload.attestations;
+                return { attested: Array.isArray(attestations) && attestations.length > 0, payload };
             } catch (error) {
                 if (error instanceof HttpError && error.status === 404) return { attested: false };
                 throw error;

@@ -66,4 +66,10 @@ describe('registry client', () => {
         const client = createRegistryClient({ fetch: fetchMock, sleep: async () => undefined });
         await expect(client.getAttestations('left-pad', '1.3.0')).resolves.toEqual({ attested: false });
     });
+
+    it('requires an actual attestation entry in a successful response', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ attestations: [] }));
+        const client = createRegistryClient({ fetch: fetchMock, sleep: async () => undefined });
+        await expect(client.getAttestations('left-pad', '1.3.0')).resolves.toMatchObject({ attested: false });
+    });
 });

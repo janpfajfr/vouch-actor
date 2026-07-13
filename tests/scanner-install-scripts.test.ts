@@ -120,6 +120,20 @@ describe('scanTargets install-script slice', () => {
         expect(item).toMatchObject({ status: 'scanned', provenance: { attested: true }, riskScore: 0 });
     });
 
+    it('does not report legacy registry signatures as provenance', async () => {
+        const registry = registryWithScripts({});
+        registry.getPackument = async (name: string) => ({
+            name,
+            versions: { '1.0.0': { name, version: '1.0.0', dist: { signatures: [{ keyid: 'legacy' }] } } },
+        });
+        const [item] = await scanTargets([target('signed-only')], {
+            registry,
+            checks: ['provenance'],
+            now: () => new Date('2026-07-13T00:00:00.000Z'),
+        });
+        expect(item).toMatchObject({ status: 'scanned', provenance: { attested: false }, riskScore: 5 });
+    });
+
     it('maps prefetched OSV results through the pure check', async () => {
         const [item] = await scanTargets([target('vulnerable')], {
             registry: registryWithScripts({}),
