@@ -45,3 +45,37 @@ export interface ResolutionStats {
     capped: number;
     unresolved: number;
 }
+
+export type RiskLevel = 'low' | 'medium' | 'high';
+
+export interface ScannedItem {
+    status: 'scanned';
+    package: string;
+    version: string;
+    sources: PackageSource[];
+    resolvedFrom: ResolvedFrom;
+    riskScore: number;
+    riskLevel: RiskLevel;
+    findings: Finding[];
+    findingCount: number;
+    provenance: { attested: boolean };
+    meta: {
+        publishedAt?: string;
+        maintainers: number;
+        weeklyDownloads?: number;
+        deprecated: boolean;
+    };
+    scannedAt: string;
+}
+
+export interface ErrorItem {
+    status: 'error';
+    package: string;
+    version?: string;
+    sources: PackageSource[];
+    resolvedFrom?: ResolvedFrom;
+    error: { code: string; message: string };
+    scannedAt: string;
+}
+
+export type DatasetItem = ScannedItem | ErrorItem;

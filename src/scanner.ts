@@ -1,0 +1,93 @@
+import { checkInstallScripts } from './checks/install-scripts.js';
+import { HttpError, type RegistryClient } from './registry.js';
+import type {
+    CheckName,
+    DatasetItem,
+    Finding,
+    ResolvedTarget,
+    RiskLevel,
+} from './types.js';
+
+interface ScanOptions {
+    registry: RegistryClient;
+    checks: CheckName[];
+    now?: () => Date;
+    score: (findings: Finding[], attested: boolean) => number;
+    concurrency?: number;
+}
+
+function riskLevel(score: number): RiskLevel {
+    if (score >= 50) return 'high';
+    if (score >= 20) return 'medium';
+    return 'low';
+}
+
+function errorCode(error: unknown): string {
+    if (error instanceof HttpError && error.status === 404) return 'PACKAGE_NOT_FOUND';
+    if (error instanceof Error && error.message.startsWith('VERSION_NOT_FOUND')) return 'VERSION_NOT_FOUND';
+    return 'REGISTRY_ERROR';
+}
+
+async function scanTarget(target: ResolvedTarget, options: ScanOptions, scannedAt: string): Promise<DatasetItem> {
+    try {
+        const packument = await options.registry.getPackument(target.name);
+        const versionMeta = packument.versions[target.version];
+        if (!versionMeta) throw new Error(`VERSION_NOT_FOUND: ${target.name}@${target.version}`);
+        const weeklyDownloads = await options.registry.getWeeklyDownloads(target.name);
+        const attestation = await options.registry.getAttestations(target.name, target.version);
+        const findings = options.checks.includes('installScripts')
+            ? checkInstallScripts(versionMeta, {})
+            : [];
+        const riskScore = options.score(findings, attestation.attested);
+        const maintainers = versionMeta.maintainers ?? packument.maintainers ?? [];
+        return {
+            status: 'scanned',
+            package: target.name,
+            version: target.version,
+            sources: target.sources,
+            resolvedFrom: target.resolvedFrom,
+            riskScore,
+            riskLevel: riskLevel(riskScore),
+            findings,
+            findingCount: findings.length,
+            provenance: { attested: attestation.attested },
+            meta: {
+                ...(packument.time?.[target.version] ? { publishedAt: packument.time[target.version] } : {}),
+                maintainers: maintainers.length,
+                ...(weeklyDownloads === undefined ? {} : { weeklyDownloads }),
+                deprecated: Boolean(versionMeta.deprecated),
+            },
+            scannedAt,
+        };
+    } catch (error) {
+        return {
+            status: 'error',
+            package: target.name,
+            version: target.version,
+            sources: target.sources,
+            resolvedFrom: target.resolvedFrom,
+            error: {
+                code: errorCode(error),
+                message: error instanceof Error ? error.message : 'Unknown package scan error',
+            },
+            scannedAt,
+        };
+    }
+}
+
+export async function scanTargets(targets: ResolvedTarget[], options: ScanOptions): Promise<DatasetItem[]> {
+    const results = new Array<DatasetItem>(targets.length);
+    const scannedAt = (options.now ?? (() => new Date()))().toISOString();
+    const workerCount = Math.min(options.concurrency ?? 5, targets.length);
+    let nextIndex = 0;
+    const workers = Array.from({ length: workerCount }, async () => {
+        while (nextIndex < targets.length) {
+            const index = nextIndex;
+            nextIndex += 1;
+            const current = targets[index];
+            if (current) results[index] = await scanTarget(current, options, scannedAt);
+        }
+    });
+    await Promise.all(workers);
+    return results;
+}
