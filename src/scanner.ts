@@ -1,6 +1,8 @@
 import { checkInstallScripts } from './checks/install-scripts.js';
 import { checkMaintainerSignals } from './checks/maintainer-signals.js';
+import { checkOsv } from './checks/osv.js';
 import { checkProvenance } from './checks/provenance.js';
+import type { OsvVulnerability } from './osv-client.js';
 import { HttpError, type RegistryClient } from './registry.js';
 import type {
     CheckName,
@@ -16,6 +18,7 @@ interface ScanOptions {
     now?: () => Date;
     score: (findings: Finding[], attested: boolean) => number;
     concurrency?: number;
+    osvVulnerabilities?: Map<string, OsvVulnerability[]>;
 }
 
 function riskLevel(score: number): RiskLevel {
@@ -50,7 +53,9 @@ async function scanTarget(target: ResolvedTarget, options: ScanOptions, scannedA
                         now: new Date(scannedAt),
                     });
                 case 'osvVulns':
-                    return [];
+                    return checkOsv(versionMeta, {
+                        vulnerabilities: options.osvVulnerabilities?.get(`${target.name}@${target.version}`) ?? [],
+                    });
             }
         });
         const riskScore = options.score(findings, attestation.attested);

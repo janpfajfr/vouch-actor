@@ -104,4 +104,17 @@ describe('scanTargets install-script slice', () => {
             expect(item.findings.every(({ check }) => check !== 'installScripts')).toBe(true);
         }
     });
+
+    it('maps prefetched OSV results through the pure check', async () => {
+        const [item] = await scanTargets([target('vulnerable')], {
+            registry: registryWithScripts({}),
+            checks: ['osvVulns'],
+            osvVulnerabilities: new Map([['vulnerable@1.0.0', [{ id: 'OSV-1', severity: [{ type: 'CVSS_V3', score: '8.0' }] }]]]),
+            now: () => new Date('2026-07-13T00:00:00.000Z'),
+            score: () => 35,
+        });
+        expect(item?.status === 'scanned' ? item.findings : []).toContainEqual(
+            expect.objectContaining({ check: 'osvVulns', severity: 'high' }),
+        );
+    });
 });
