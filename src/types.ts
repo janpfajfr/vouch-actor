@@ -36,3 +36,12 @@ export interface ResolvedTarget {
     sources: PackageSource[];
     resolvedFrom: ResolvedFrom;
 }
+
+export interface ResolutionStats {
+    discovered: number;
+    resolved: number;
+    deduplicated: number;
+    selected: number;
+    capped: number;
+    unresolved: number;
+}
