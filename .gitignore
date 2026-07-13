@@ -1,0 +1,10 @@
+docs/superpowers/
+
+# Local Apify runtime data
+storage/
+apify_storage/
+
+# Node build artifacts
+node_modules/
+dist/
+coverage/
