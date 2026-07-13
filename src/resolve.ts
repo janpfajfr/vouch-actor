@@ -3,6 +3,7 @@ import { maxSatisfying, valid } from 'semver';
 import { HttpError, type RegistryClient } from './registry.js';
 import type {
     LockfileKind,
+    PackageSource,
     ResolvedFrom,
     ResolvedTarget,
     ResolutionStats,
@@ -23,9 +24,18 @@ interface LockfileState {
 
 export interface ResolutionResult {
     targets: ResolvedTarget[];
+    errors: ResolutionError[];
     lockfile: LockfileState;
     statusNotes: string[];
     stats: ResolutionStats;
+}
+
+export interface ResolutionError {
+    package: string;
+    requested?: string;
+    sources: PackageSource[];
+    code: 'PACKAGE_NOT_FOUND' | 'VERSION_NOT_FOUND' | 'REGISTRY_ERROR';
+    message: string;
 }
 
 interface Manifest {
@@ -135,9 +145,30 @@ function mergeTargets(targets: ResolvedTarget[]): ResolvedTarget[] {
     return [...merged.values()].sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`));
 }
 
+function toResolutionError(
+    name: string,
+    requested: string,
+    source: PackageSource,
+    error: unknown,
+): ResolutionError {
+    const code = error instanceof HttpError && error.status === 404
+        ? 'PACKAGE_NOT_FOUND'
+        : error instanceof Error && error.message.startsWith('VERSION_NOT_FOUND')
+            ? 'VERSION_NOT_FOUND'
+            : 'REGISTRY_ERROR';
+    return {
+        package: name,
+        ...(requested ? { requested } : {}),
+        sources: [source],
+        code,
+        message: error instanceof Error ? error.message : `Unable to resolve ${name}`,
+    };
+}
+
 export async function resolveInput(input: ScannerInput, dependencies: ResolveDependencies): Promise<ResolutionResult> {
     const targets: ResolvedTarget[] = [];
     const statusNotes: string[] = [];
+    const errors: ResolutionError[] = [];
     let lockfile: LockfileState = { detected: 'none', parsed: false };
     let discovered = 0;
     let unresolved = 0;
@@ -148,8 +179,9 @@ export async function resolveInput(input: ScannerInput, dependencies: ResolveDep
         try {
             const resolved = await resolveVersion(name, requested, dependencies.registry);
             targets.push({ name, ...resolved, sources: ['explicit'] });
-        } catch {
+        } catch (error) {
             unresolved += 1;
+            errors.push(toResolutionError(name, requested, 'explicit', error));
         }
     }
 
@@ -182,8 +214,9 @@ export async function resolveInput(input: ScannerInput, dependencies: ResolveDep
             try {
                 const resolved = await resolveVersion(name, constraint, dependencies.registry);
                 targets.push({ name, version: resolved.version, sources: ['manifest'], resolvedFrom: 'range' });
-            } catch {
+            } catch (error) {
                 unresolved += 1;
+                errors.push(toResolutionError(name, constraint, 'manifest', error));
             }
         }
 
@@ -206,6 +239,7 @@ export async function resolveInput(input: ScannerInput, dependencies: ResolveDep
     const selected = deduplicated.slice(0, input.maxPackages);
     return {
         targets: selected,
+        errors,
         lockfile,
         statusNotes,
         stats: {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { githubManifestUrls, resolveInput } from '../src/resolve.js';
-import type { Packument, RegistryClient } from '../src/registry.js';
+import { HttpError, type Packument, type RegistryClient } from '../src/registry.js';
 import type { ScannerInput } from '../src/types.js';
 
 const allChecks = ['installScripts', 'provenance', 'maintainerSignals', 'osvVulns'] as const;
@@ -95,5 +95,30 @@ describe('resolveInput lockfile policy', () => {
         }));
         expect(result.targets).toEqual([{ name: 'lodash', version: '4.17.20', sources: ['explicit'], resolvedFrom: 'exact' }]);
         expect(result.stats).toMatchObject({ deduplicated: 2, selected: 1, capped: 1 });
+    });
+
+    it('retains an explicit registry 404 as an error target', async () => {
+        const registry = {
+            ...dependencies({}, {}).registry,
+            getPackument: async () => { throw new HttpError(404, 'https://registry.npmjs.org/lodahs'); },
+        };
+        const result = await resolveInput(input({ packages: ['lodahs'] }), { registry, fetchRemote: dependencies({}, {}).fetchRemote });
+        expect(result.errors).toEqual([expect.objectContaining({
+            package: 'lodahs', sources: ['explicit'], code: 'PACKAGE_NOT_FOUND',
+        })]);
+    });
+
+    it('retains a manifest registry 404 as a non-explicit error target', async () => {
+        const files = { [`${base}package.json`]: { dependencies: { private: '^1.0.0' } } };
+        const registry = {
+            ...dependencies(files, {}).registry,
+            getPackument: async () => { throw new HttpError(404, 'https://registry.npmjs.org/private'); },
+        };
+        const result = await resolveInput(input({ packageJsonUrl: 'https://github.com/acme/app' }), {
+            registry, fetchRemote: dependencies(files, {}).fetchRemote,
+        });
+        expect(result.errors).toEqual([expect.objectContaining({
+            package: 'private', sources: ['manifest'], code: 'PACKAGE_NOT_FOUND',
+        })]);
     });
 });
