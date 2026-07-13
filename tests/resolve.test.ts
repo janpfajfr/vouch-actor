@@ -89,6 +89,17 @@ describe('resolveInput lockfile policy', () => {
         expect(result.statusNotes).toContain('No lockfile detected; direct deps resolved as latest-matching, transitive scan unavailable');
     });
 
+    it('labels non-registry manifest dependency specs as unsupported', async () => {
+        const files = { [`${base}package.json`]: { dependencies: { local: 'workspace:*' } } };
+        const result = await resolveInput(input({ packageJsonUrl: 'https://github.com/acme/app' }), dependencies(files, {}));
+        expect(result.errors).toContainEqual(expect.objectContaining({
+            package: 'local',
+            requested: 'workspace:*',
+            sources: ['manifest'],
+            code: 'UNSUPPORTED_SPEC',
+        }));
+    });
+
     it('resolves before deduplicating and caps exact targets deterministically', async () => {
         const result = await resolveInput(input({ packages: ['lodash@4.17.20', 'lodash@4.17.21', 'lodash@4.17.20'], maxPackages: 1 }), dependencies({}, {
             lodash: ['4.17.20', '4.17.21'],

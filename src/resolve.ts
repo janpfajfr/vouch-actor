@@ -34,8 +34,12 @@ export interface ResolutionError {
     package: string;
     requested?: string;
     sources: PackageSource[];
-    code: 'PACKAGE_NOT_FOUND' | 'VERSION_NOT_FOUND' | 'REGISTRY_ERROR';
+    code: 'PACKAGE_NOT_FOUND' | 'VERSION_NOT_FOUND' | 'UNSUPPORTED_SPEC' | 'REGISTRY_ERROR';
     message: string;
+}
+
+function isUnsupportedRegistrySpec(spec: string): boolean {
+    return /^(?:workspace:|file:|link:|npm:|git(?:\+[^:]+)?:|https?:|github:|gitlab:|bitbucket:)/i.test(spec);
 }
 
 interface Manifest {
@@ -209,6 +213,17 @@ export async function resolveInput(input: ScannerInput, dependencies: ResolveDep
             const exact = lockEntries[`node_modules/${name}`]?.version;
             if (exact) {
                 targets.push({ name, version: exact, sources: ['manifest'], resolvedFrom: 'lockfile' });
+                continue;
+            }
+            if (isUnsupportedRegistrySpec(constraint)) {
+                unresolved += 1;
+                errors.push({
+                    package: name,
+                    requested: constraint,
+                    sources: ['manifest'],
+                    code: 'UNSUPPORTED_SPEC',
+                    message: `Unsupported non-registry dependency spec: ${name}@${constraint}`,
+                });
                 continue;
             }
             try {

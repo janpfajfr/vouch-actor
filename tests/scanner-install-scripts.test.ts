@@ -105,6 +105,21 @@ describe('scanTargets install-script slice', () => {
         }
     });
 
+    it('uses exact-version dist attestations without calling the attestation endpoint', async () => {
+        const registry = registryWithScripts({});
+        registry.getPackument = async (name: string) => ({
+            name,
+            versions: { '1.0.0': { name, version: '1.0.0', dist: { attestations: { url: 'https://registry.example/attestation' } } } },
+        });
+        registry.getAttestations = async () => { throw new Error('endpoint should not be called'); };
+        const [item] = await scanTargets([target('attested')], {
+            registry,
+            checks: ['provenance'],
+            now: () => new Date('2026-07-13T00:00:00.000Z'),
+        });
+        expect(item).toMatchObject({ status: 'scanned', provenance: { attested: true }, riskScore: 0 });
+    });
+
     it('maps prefetched OSV results through the pure check', async () => {
         const [item] = await scanTargets([target('vulnerable')], {
             registry: registryWithScripts({}),
