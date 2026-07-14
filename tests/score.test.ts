@@ -31,7 +31,7 @@ describe('sortDatasetItems', () => {
             riskLevel: riskLevelFor(riskScore), findings: [], findingCount: 0,
             provenance: { attested: false }, meta: { maintainers: 0, deprecated: false },
         });
-        const error: DatasetItem = { ...base, status: 'error', package: 'broken', version: '1.0.0', error: { code: 'REGISTRY_ERROR', message: 'failed' } };
+        const error: DatasetItem = { ...base, status: 'error', package: 'broken', version: '1.0.0', errorCode: 'REGISTRY_ERROR', error: { code: 'REGISTRY_ERROR', message: 'failed' } };
         expect(sortDatasetItems([scanned('alpha', 10), error, scanned('zeta', 80), scanned('beta', 80)]).map((item) => item.package))
             .toEqual(['beta', 'zeta', 'alpha', 'broken']);
     });

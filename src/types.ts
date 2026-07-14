@@ -76,6 +76,7 @@ export interface ErrorItem {
     sources: PackageSource[];
     sourcesText: string;
     resolvedFrom?: ResolvedFrom;
+    errorCode: string;
     error: { code: string; message: string };
     scannedAt: string;
 }

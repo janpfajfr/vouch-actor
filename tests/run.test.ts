@@ -105,9 +105,16 @@ describe('runActor', () => {
             package: 'missing',
             sources: ['explicit'],
             sourcesText: 'explicit',
+            errorCode: 'PACKAGE_NOT_FOUND',
             error: { code: 'PACKAGE_NOT_FOUND', message: expect.any(String) },
         }));
         expect(fixture.events.at(-1)).toContain('Explicit package not found');
+    });
+
+    it('does not count an explicit resolution error as scanned or unresolved', async () => {
+        const fixture = actor({ packages: ['missing', 'dangerous@1.0.0', 'safe@1.0.0'] });
+        await runActor(fixture.adapter, runDependencies());
+        expect(fixture.events).toContain('status:Scanned 2 of 3 packages: 1 medium, 1 low, 1 error');
     });
 
     it('keeps a manifest-only 404 nonfatal when another package scans', async () => {
@@ -133,7 +140,7 @@ describe('runActor', () => {
             error: { code: 'PACKAGE_NOT_FOUND', message: expect.any(String) },
         })]);
         expect(fixture.events.at(-1)).toMatch(/^exit:/);
-        expect(fixture.events.at(-1)).toContain('1 unresolved, 1 error');
+        expect(fixture.events.at(-1)).toContain('Scanned 0 of 1 package: 1 error');
     });
 
     it('fails when every row has a non-404 resolution error', async () => {

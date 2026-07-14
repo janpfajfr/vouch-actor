@@ -84,6 +84,7 @@ async function scanTarget(target: ResolvedTarget, options: ScanOptions, scannedA
             scannedAt,
         };
     } catch (error) {
+        const code = errorCode(error);
         return {
             status: 'error',
             package: target.name,
@@ -91,8 +92,9 @@ async function scanTarget(target: ResolvedTarget, options: ScanOptions, scannedA
             sources: target.sources,
             sourcesText: target.sources.join(', '),
             resolvedFrom: target.resolvedFrom,
+            errorCode: code,
             error: {
-                code: errorCode(error),
+                code,
                 message: error instanceof Error ? error.message : 'Unknown package scan error',
             },
             scannedAt,

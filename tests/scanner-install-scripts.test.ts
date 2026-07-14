@@ -79,6 +79,7 @@ describe('scanTargets install-script slice', () => {
             sources: ['explicit'],
             sourcesText: 'explicit',
             resolvedFrom: 'exact',
+            errorCode: 'REGISTRY_ERROR',
             error: { code: 'REGISTRY_ERROR', message: 'registry timeout' },
             scannedAt: '2026-07-13T00:00:00.000Z',
         });

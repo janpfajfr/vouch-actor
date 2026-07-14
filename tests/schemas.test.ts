@@ -52,6 +52,7 @@ describe('Actor schemas', () => {
         const views = schema.views as Record<string, Record<string, unknown>>;
         expect(fields.$schema).toBe('http://json-schema.org/draft-07/schema#');
         expect(properties.sourcesText).toEqual({ type: 'string' });
+        expect(properties.errorCode).toEqual({ type: 'string' });
         expect(properties.resolvedFrom?.enum).toEqual(['exact', 'tag', 'range', 'lockfile']);
         expect(properties.findings).toMatchObject({
             type: 'array',
@@ -63,10 +64,13 @@ describe('Actor schemas', () => {
         expect(properties.provenance).toMatchObject({ type: 'object', required: ['attested'] });
         expect(properties.meta).toMatchObject({ type: 'object', required: ['maintainers', 'deprecated'] });
         expect(views.overview).toMatchObject({
-            transformation: { fields: ['package', 'version', 'status', 'riskScore', 'riskLevel', 'findingCount', 'sourcesText', 'resolvedFrom'] },
+            transformation: { fields: ['package', 'version', 'status', 'riskScore', 'riskLevel', 'findingCount', 'errorCode', 'sourcesText', 'resolvedFrom'] },
             display: {
                 component: 'table',
-                properties: { sourcesText: { label: 'Sources', format: 'text' } },
+                properties: {
+                    errorCode: { label: 'Error code', format: 'text' },
+                    sourcesText: { label: 'Sources', format: 'text' },
+                },
             },
         });
     });

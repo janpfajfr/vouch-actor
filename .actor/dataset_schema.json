@@ -9,6 +9,7 @@
       "version": { "type": "string" },
       "sources": { "type": "array", "items": { "type": "string" } },
       "sourcesText": { "type": "string" },
+      "errorCode": { "type": "string" },
       "resolvedFrom": { "type": "string", "enum": ["exact", "tag", "range", "lockfile"] },
       "riskScore": { "type": "integer", "minimum": 0, "maximum": 100 },
       "riskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
@@ -60,7 +61,7 @@
       },
       {
         "properties": { "status": { "const": "error" } },
-        "required": ["error"]
+        "required": ["errorCode", "error"]
       }
     ]
   },
@@ -69,7 +70,7 @@
       "title": "Overview",
       "description": "Packages ordered by risk score, with unresolved packages retained as error rows.",
       "transformation": {
-        "fields": ["package", "version", "status", "riskScore", "riskLevel", "findingCount", "sourcesText", "resolvedFrom"]
+        "fields": ["package", "version", "status", "riskScore", "riskLevel", "findingCount", "errorCode", "sourcesText", "resolvedFrom"]
       },
       "display": {
         "component": "table",
@@ -80,6 +81,7 @@
           "riskScore": { "label": "Risk score", "format": "number" },
           "riskLevel": { "label": "Risk level", "format": "text" },
           "findingCount": { "label": "Findings", "format": "number" },
+          "errorCode": { "label": "Error code", "format": "text" },
           "sourcesText": { "label": "Sources", "format": "text" },
           "resolvedFrom": { "label": "Resolved from", "format": "text" }
         }

@@ -76,6 +76,7 @@ export async function runActor(actor: ActorAdapter, dependencies: RunDependencie
         package: error.package,
         sources: error.sources,
         sourcesText: error.sources.join(', '),
+        errorCode: error.code,
         error: { code: error.code, message: error.message },
         scannedAt,
     }));
@@ -86,7 +87,8 @@ export async function runActor(actor: ActorAdapter, dependencies: RunDependencie
     }
     await actor.pushData(items);
     const total = resolution.stats.deduplicated + resolution.errors.length;
-    const summary = buildStatusMessage(items, resolution.stats.capped, total, resolution.stats.unresolved, notes);
+    const unresolvedWithoutErrorRow = Math.max(0, resolution.stats.unresolved - resolution.errors.length);
+    const summary = buildStatusMessage(items, resolution.stats.capped, total, unresolvedWithoutErrorRow, notes);
     await actor.setStatusMessage(summary);
 
     const explicitMissing = items.find((item) => item.status === 'error'
