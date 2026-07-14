@@ -46,7 +46,9 @@ describe('Actor schemas', () => {
 
     it('defines a concise dataset overview view', async () => {
         const schema = await readJson('.actor/dataset_schema.json');
+        const fields = schema.fields as Record<string, unknown>;
         const views = schema.views as Record<string, Record<string, unknown>>;
+        expect(fields.$schema).toBe('http://json-schema.org/draft-07/schema#');
         expect(views.overview).toMatchObject({
             transformation: { fields: ['package', 'version', 'status', 'riskScore', 'riskLevel', 'findingCount', 'sources', 'resolvedFrom'] },
             display: { component: 'table' },

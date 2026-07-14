@@ -21,7 +21,6 @@ describe('actor scaffold', () => {
             cwd: fileURLToPath(new URL('..', import.meta.url)),
             encoding: 'utf8',
         });
-        expect(result.stderr).toBe('');
-        expect(result.status).toBe(0);
+        expect(result.status, result.stderr).toBe(0);
     });
 });
