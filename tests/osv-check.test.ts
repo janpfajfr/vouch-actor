@@ -18,6 +18,14 @@ describe('checkOsv', () => {
         expect(finding).toMatchObject({ check: 'osvVulns', severity, reference: 'https://osv.dev/vulnerability/OSV-1' });
     });
 
+    it('maps a real CVSS v3 vector to its risk severity', () => {
+        const [finding] = checkOsv({}, { vulnerabilities: [{
+            id: 'OSV-VECTOR',
+            severity: [{ type: 'CVSS_V3', score: 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H' }],
+        }] });
+        expect(finding).toMatchObject({ severity: 'critical' });
+    });
+
     it('keeps unavailable severity informational', () => {
         expect(checkOsv({}, { vulnerabilities: [{ id: 'OSV-2', aliases: ['CVE-2026-1'] }] })[0]).toMatchObject({
             severity: 'info',

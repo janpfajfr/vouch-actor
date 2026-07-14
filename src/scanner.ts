@@ -37,9 +37,12 @@ async function scanTarget(target: ResolvedTarget, options: ScanOptions, scannedA
         const versionMeta = packument.versions[target.version];
         if (!versionMeta) throw new Error(`VERSION_NOT_FOUND: ${target.name}@${target.version}`);
         const weeklyDownloads = await options.registry.getWeeklyDownloads(target.name);
-        const attestation = hasEmbeddedAttestation(versionMeta)
-            ? { attested: true }
-            : await options.registry.getAttestations(target.name, target.version);
+        let attestation = { attested: false };
+        if (options.checks.includes('provenance')) {
+            attestation = hasEmbeddedAttestation(versionMeta)
+                ? { attested: true }
+                : await options.registry.getAttestations(target.name, target.version);
+        }
         const findings = options.checks.flatMap((check): Finding[] => {
             switch (check) {
                 case 'installScripts':

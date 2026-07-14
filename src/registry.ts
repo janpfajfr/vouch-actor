@@ -2,11 +2,12 @@ export type FetchLike = (input: string | URL | Request, init?: RequestInit) => P
 
 type Sleep = (milliseconds: number) => Promise<void>;
 
-interface RetryDependencies {
+export interface RetryDependencies {
     fetch?: FetchLike;
     sleep?: Sleep;
     random?: () => number;
     timeoutMs?: number;
+    acceptStatus?: (status: number) => boolean;
 }
 
 export class HttpError extends Error {
@@ -40,7 +41,7 @@ export async function fetchWithRetry(
         let lastError: unknown;
         try {
             const response = await fetcher(url, { ...init, signal: controller.signal });
-            if (response.ok) return response;
+            if (response.ok || dependencies.acceptStatus?.(response.status)) return response;
             lastError = new HttpError(response.status, url);
         } catch (error) {
             lastError = error;

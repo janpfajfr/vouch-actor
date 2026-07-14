@@ -95,7 +95,7 @@ The check reads `preinstall`, `install`, and `postinstall` from the exact versio
 
 ### Provenance
 
-The check looks for exact-version npm attestations in version metadata and the public npm attestation endpoint. A present attestation subtracts 10 points. Missing provenance is common and produces only a low-severity finding because absence alone is weak evidence. This Actor detects presence; it is not a substitute for cryptographic verification with the current npm CLI.
+When selected, the check looks for exact-version npm attestations in version metadata and the public npm attestation endpoint. A present attestation subtracts 10 points. Missing provenance is common and produces only a low-severity finding because absence alone is weak evidence. This Actor detects presence; it is not a substitute for cryptographic verification with the current npm CLI.
 
 ### Maintainer signals
 
@@ -125,7 +125,8 @@ This Actor is the hosted analysis companion to the open-source [vouch CLI](https
 ## Limitations
 
 - Only public npm registry packages are scanned. Private manifest dependencies produce error rows and are not sent to a private registry.
-- `package-lock.json` is parsed for exact versions and optional transitives. A direct dependency without a conventional exact root entry falls back to range mode and is disclosed in the status message. `pnpm-lock.yaml` and `yarn.lock` are detected but not parsed in v1, so direct dependencies use range mode and transitive scanning is unavailable.
+- Manifest URLs must use HTTPS and resolve only to public network addresses. Redirect destinations are checked under the same policy.
+- `package-lock.json` files with a `packages` map are parsed for exact versions and optional transitives. Older or unsupported structures are disclosed and use range mode. A direct dependency without a conventional exact root entry also falls back to range mode and is disclosed in the status message. `pnpm-lock.yaml` and `yarn.lock` are detected but not parsed in v1, so direct dependencies use range mode and transitive scanning is unavailable.
 - With no supported lockfile, ranges resolve to the newest version matching the current registry state. That may differ from a version installed previously.
 - `includeTransitive` is capped by `maxPackages`. The status message reports truncation instead of silently dropping it.
 - Git, file, link, workspace, URL, and npm-alias dependency specs are retained as `UNSUPPORTED_SPEC` error rows.

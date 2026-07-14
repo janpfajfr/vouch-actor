@@ -30,13 +30,13 @@ export function parseInput(value: unknown): ScannerInput {
 
     let packageJsonUrl: string | undefined;
     if (input.packageJsonUrl !== undefined) {
-        if (typeof input.packageJsonUrl !== 'string') throw new Error('packageJsonUrl must be an HTTP(S) URL');
+        if (typeof input.packageJsonUrl !== 'string') throw new Error('packageJsonUrl must be an HTTPS URL');
         try {
             const url = new URL(input.packageJsonUrl);
-            if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error();
+            if (url.protocol !== 'https:') throw new Error();
             packageJsonUrl = url.toString();
         } catch {
-            throw new Error('packageJsonUrl must be an HTTP(S) URL');
+            throw new Error('packageJsonUrl must be an HTTPS URL');
         }
     }
     if (!packages && !packageJsonUrl) throw new Error('Provide at least one package or packageJsonUrl');

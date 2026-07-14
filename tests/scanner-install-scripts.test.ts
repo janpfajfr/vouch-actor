@@ -68,6 +68,22 @@ describe('scanTargets install-script slice', () => {
         });
     });
 
+    it('does not fetch or score provenance when the check is disabled', async () => {
+        const registry = registryWithScripts({ postinstall: 'node install.js' });
+        registry.getAttestations = async () => { throw new Error('attestation service unavailable'); };
+        const [item] = await scanTargets([target('install-only')], {
+            registry,
+            checks: ['installScripts'],
+            now: () => new Date('2026-07-13T00:00:00.000Z'),
+        });
+        expect(item).toMatchObject({
+            status: 'scanned',
+            riskScore: 15,
+            provenance: { attested: false },
+            findings: [{ check: 'installScripts', severity: 'medium' }],
+        });
+    });
+
     it('bounds package concurrency at five', async () => {
         let active = 0;
         let maximum = 0;

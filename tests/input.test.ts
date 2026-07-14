@@ -36,6 +36,10 @@ describe('parseInput', () => {
         expect(() => parseInput({ packageJsonUrl: 'file:///tmp/package.json' })).toThrow('packageJsonUrl');
     });
 
+    it('rejects unencrypted HTTP manifest URLs', () => {
+        expect(() => parseInput({ packageJsonUrl: 'http://example.com/package.json' })).toThrow('HTTPS');
+    });
+
     it('drops empty package entries but requires a usable source', () => {
         expect(() => parseInput({ packages: [' ', ''] })).toThrow('Provide at least one package or packageJsonUrl');
     });

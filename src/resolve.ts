@@ -199,8 +199,12 @@ export async function resolveInput(input: ScannerInput, dependencies: ResolveDep
         let packageLock: PackageLock | undefined;
         const npmResponse = await optionalRemote(dependencies.fetchRemote, urls.packageLock);
         if (npmResponse) {
-            packageLock = await jsonFrom<PackageLock>(npmResponse, 'package-lock.json');
-            lockfile = { detected: 'package-lock.json', parsed: true };
+            const candidate = await jsonFrom<PackageLock>(npmResponse, 'package-lock.json');
+            const hasPackagesMap = typeof candidate.packages === 'object'
+                && candidate.packages !== null
+                && !Array.isArray(candidate.packages);
+            if (hasPackagesMap) packageLock = candidate;
+            lockfile = { detected: 'package-lock.json', parsed: hasPackagesMap };
         } else if (await optionalRemote(dependencies.fetchRemote, urls.pnpmLock)) {
             lockfile = { detected: 'pnpm-lock.yaml', parsed: false };
         } else if (await optionalRemote(dependencies.fetchRemote, urls.yarnLock)) {
@@ -239,16 +243,19 @@ export async function resolveInput(input: ScannerInput, dependencies: ResolveDep
         if (lockfileRangeFallbacks > 0) {
             statusNotes.push(`package-lock.json lacked exact root entries for ${lockfileRangeFallbacks} direct ${lockfileRangeFallbacks === 1 ? 'dependency' : 'dependencies'}; resolved as latest-matching`);
         }
+        if (lockfile.detected === 'package-lock.json' && !lockfile.parsed) {
+            statusNotes.push(`package-lock.json detected but its format is not parsed in v1; direct deps resolved as latest-matching${input.includeTransitive ? ', transitive scan unavailable' : ''}`);
+        }
 
         if (input.includeTransitive && packageLock) {
             const direct = new Set(Object.keys(constraints));
             for (const [path, entry] of Object.entries(lockEntries)) {
                 const name = packageNameFromLockPath(path);
-                if (!name || !entry.version || direct.has(name)) continue;
+                if (!name || !entry.version || (direct.has(name) && path === `node_modules/${name}`)) continue;
                 discovered += 1;
                 targets.push({ name, version: entry.version, sources: ['transitive'], resolvedFrom: 'lockfile' });
             }
-        } else if (input.includeTransitive) {
+        } else if (input.includeTransitive && lockfile.detected !== 'package-lock.json') {
             statusNotes.push(lockfile.detected === 'none'
                 ? 'No lockfile detected; direct deps resolved as latest-matching, transitive scan unavailable'
                 : `${lockfile.detected} detected but not parsed in v1; direct deps resolved as latest-matching, transitive scan unavailable`);

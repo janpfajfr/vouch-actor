@@ -4,7 +4,7 @@ import type { RegistryClient } from './registry.js';
 import { resolveInput } from './resolve.js';
 import { scanTargets } from './scanner.js';
 import { sortDatasetItems } from './score.js';
-import type { DatasetItem, ResolvedTarget } from './types.js';
+import type { DatasetItem, ResolvedTarget, ScannerInput } from './types.js';
 
 export interface ActorAdapter {
     init: () => Promise<void>;
@@ -56,8 +56,19 @@ export async function runActor(actor: ActorAdapter, dependencies: RunDependencie
             fetchRemote: dependencies.fetchRemote,
         });
     } catch (error) {
-        await actor.fail(`Unable to resolve input: ${error instanceof Error ? error.message : 'unknown error'}`);
-        return;
+        const message = error instanceof Error ? error.message : 'unknown error';
+        if (input.packages?.length && input.packageJsonUrl) {
+            const explicitInput: ScannerInput = { ...input };
+            delete explicitInput.packageJsonUrl;
+            resolution = await resolveInput(explicitInput, {
+                registry: dependencies.registry,
+                fetchRemote: dependencies.fetchRemote,
+            });
+            resolution.statusNotes.push(`Manifest resolution failed: ${message}`);
+        } else {
+            await actor.fail(`Unable to resolve input: ${message}`);
+            return;
+        }
     }
     const notes = [...resolution.statusNotes];
     let osvVulnerabilities = new Map<string, OsvVulnerability[]>();
@@ -89,7 +100,7 @@ export async function runActor(actor: ActorAdapter, dependencies: RunDependencie
         return;
     }
     await actor.pushData(items);
-    const total = resolution.stats.deduplicated + resolution.stats.capped + resolution.errors.length;
+    const total = resolution.stats.deduplicated + resolution.errors.length;
     const summary = summaryFor(items, resolution.stats.capped, total, resolution.stats.unresolved, notes);
     await actor.setStatusMessage(summary);
 

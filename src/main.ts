@@ -1,7 +1,8 @@
 import { Actor, log } from 'apify';
 
 import { queryOsvBatch } from './osv-client.js';
-import { createRegistryClient, fetchWithRetry } from './registry.js';
+import { createRegistryClient } from './registry.js';
+import { fetchPublicUrl } from './remote.js';
 import { runActor } from './run.js';
 
 const registry = createRegistryClient({
@@ -17,6 +18,6 @@ await runActor({
     fail: async (message) => Actor.fail(message),
 }, {
     registry,
-    fetchRemote: async (url) => fetchWithRetry(url),
+    fetchRemote: async (url) => fetchPublicUrl(url),
     queryOsv: async (targets) => queryOsvBatch(targets),
 });

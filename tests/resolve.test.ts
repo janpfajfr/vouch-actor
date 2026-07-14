@@ -66,6 +66,35 @@ describe('resolveInput lockfile policy', () => {
         ]);
     });
 
+    it('keeps nested alternate versions of a direct dependency', async () => {
+        const files = {
+            [`${base}package.json`]: { dependencies: { shared: '^2.0.0' } },
+            [`${base}package-lock.json`]: { packages: {
+                '': {},
+                'node_modules/shared': { version: '2.0.0' },
+                'node_modules/consumer/node_modules/shared': { version: '1.0.0' },
+            } },
+        };
+        const result = await resolveInput(input({ packageJsonUrl: 'https://github.com/acme/app', includeTransitive: true }), dependencies(files, {}));
+        expect(result.targets).toEqual([
+            { name: 'shared', version: '1.0.0', sources: ['transitive'], resolvedFrom: 'lockfile' },
+            { name: 'shared', version: '2.0.0', sources: ['manifest'], resolvedFrom: 'lockfile' },
+        ]);
+    });
+
+    it('discloses package-lock formats without a packages map', async () => {
+        const files = {
+            [`${base}package.json`]: { dependencies: { lodash: '^4.17.0' } },
+            [`${base}package-lock.json`]: { lockfileVersion: 1, dependencies: { lodash: { version: '4.17.20' } } },
+        };
+        const result = await resolveInput(input({ packageJsonUrl: 'https://github.com/acme/app', includeTransitive: true }), dependencies(files, {
+            lodash: ['4.17.20', '4.17.21'],
+        }));
+        expect(result.lockfile).toEqual({ detected: 'package-lock.json', parsed: false });
+        expect(result.targets[0]).toMatchObject({ version: '4.17.21', resolvedFrom: 'range' });
+        expect(result.statusNotes).toContain('package-lock.json detected but its format is not parsed in v1; direct deps resolved as latest-matching, transitive scan unavailable');
+    });
+
     it('reports direct dependencies missing exact root lockfile entries', async () => {
         const files = {
             [`${base}package.json`]: { dependencies: { lodash: '^4.17.0' } },

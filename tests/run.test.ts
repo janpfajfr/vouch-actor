@@ -50,6 +50,14 @@ describe('runActor', () => {
         expect(fixture.events.at(-1)).toContain('package.json not found');
     });
 
+    it('continues explicit scans when the combined manifest cannot be fetched', async () => {
+        const fixture = actor({ packages: ['safe@1.0.0'], packageJsonUrl: 'https://github.com/acme/missing' });
+        await runActor(fixture.adapter, runDependencies());
+        expect(fixture.pushed).toContainEqual(expect.objectContaining({ status: 'scanned', package: 'safe' }));
+        expect(fixture.events.at(-1)).toMatch(/^exit:/);
+        expect(fixture.events.at(-1)).toContain('Manifest resolution failed');
+    });
+
     it('pushes data before failing a threshold breach', async () => {
         const fixture = actor({ packages: ['dangerous@1.0.0'], checks: ['installScripts'], failThreshold: 25 });
         await runActor(fixture.adapter, runDependencies());
@@ -73,5 +81,11 @@ describe('runActor', () => {
         await runActor(fixture.adapter, runDependencies(files));
         expect(fixture.pushed).toHaveLength(2);
         expect(fixture.events.at(-1)).toMatch(/^exit:/);
+    });
+
+    it('reports the deduplicated total when maxPackages caps output', async () => {
+        const fixture = actor({ packages: ['one@1.0.0', 'two@1.0.0'], maxPackages: 1 });
+        await runActor(fixture.adapter, runDependencies());
+        expect(fixture.events.at(-1)).toContain('Scanned 1 of 2 packages, capped by maxPackages');
     });
 });
