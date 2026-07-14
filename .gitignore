@@ -1,0 +1,18 @@
+docs/superpowers/
+
+# Local Apify runtime data
+storage/
+apify_storage/
+crawlee_storage/
+
+# Node build artifacts
+node_modules/
+dist/
+coverage/
+tsconfig.tsbuildinfo
+
+# Editors and local environments
+.idea/
+.vscode/
+.zed/
+.venv/

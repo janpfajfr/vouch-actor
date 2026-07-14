@@ -1,0 +1,26 @@
+{
+  "esbuild": {
+    "name": "esbuild",
+    "version": "0.25.6",
+    "scripts": {
+      "postinstall": "node install.js"
+    },
+    "optionalDependencies": {
+      "@esbuild/darwin-arm64": "0.25.6",
+      "@esbuild/linux-arm64": "0.25.6",
+      "@esbuild/linux-x64": "0.25.6",
+      "@esbuild/win32-x64": "0.25.6"
+    }
+  },
+  "core-js": {
+    "name": "core-js",
+    "version": "3.44.0",
+    "scripts": {
+      "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
+    }
+  },
+  "husky": {
+    "name": "husky",
+    "version": "9.1.7"
+  }
+}

