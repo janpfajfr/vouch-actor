@@ -8,24 +8,68 @@
       "package": { "type": "string" },
       "version": { "type": "string" },
       "sources": { "type": "array", "items": { "type": "string" } },
+      "sourcesText": { "type": "string" },
       "resolvedFrom": { "type": "string", "enum": ["exact", "tag", "range", "lockfile"] },
       "riskScore": { "type": "integer", "minimum": 0, "maximum": 100 },
       "riskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
       "findingCount": { "type": "integer", "minimum": 0 },
-      "findings": { "type": "array", "items": { "type": "object" } },
-      "provenance": { "type": "object" },
-      "meta": { "type": "object" },
-      "error": { "type": "object" },
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "check": { "type": "string", "enum": ["installScripts", "provenance", "maintainerSignals", "osvVulns"] },
+            "severity": { "type": "string", "enum": ["info", "low", "medium", "high", "critical"] },
+            "summary": { "type": "string" },
+            "detail": { "type": "string" },
+            "reference": { "type": "string" }
+          },
+          "required": ["check", "severity", "summary", "detail"]
+        }
+      },
+      "provenance": {
+        "type": "object",
+        "properties": { "attested": { "type": "boolean" } },
+        "required": ["attested"]
+      },
+      "meta": {
+        "type": "object",
+        "properties": {
+          "publishedAt": { "type": "string", "format": "date-time" },
+          "maintainers": { "type": "integer", "minimum": 0 },
+          "weeklyDownloads": { "type": "integer", "minimum": 0 },
+          "deprecated": { "type": "boolean" }
+        },
+        "required": ["maintainers", "deprecated"]
+      },
+      "error": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        },
+        "required": ["code", "message"]
+      },
       "scannedAt": { "type": "string", "format": "date-time" }
     },
-    "required": ["status", "package", "sources", "scannedAt"]
+    "required": ["status", "package", "sources", "sourcesText", "scannedAt"],
+    "oneOf": [
+      {
+        "properties": { "status": { "const": "scanned" } },
+        "required": ["version", "resolvedFrom", "riskScore", "riskLevel", "findings", "findingCount", "provenance", "meta"]
+      },
+      {
+        "properties": { "status": { "const": "error" } },
+        "required": ["error"]
+      }
+    ]
   },
   "views": {
     "overview": {
       "title": "Overview",
       "description": "Packages ordered by risk score, with unresolved packages retained as error rows.",
       "transformation": {
-        "fields": ["package", "version", "status", "riskScore", "riskLevel", "findingCount", "sources", "resolvedFrom"]
+        "fields": ["package", "version", "status", "riskScore", "riskLevel", "findingCount", "sourcesText", "resolvedFrom"]
       },
       "display": {
         "component": "table",
@@ -36,7 +80,7 @@
           "riskScore": { "label": "Risk score", "format": "number" },
           "riskLevel": { "label": "Risk level", "format": "text" },
           "findingCount": { "label": "Findings", "format": "number" },
-          "sources": { "label": "Sources", "format": "array" },
+          "sourcesText": { "label": "Sources", "format": "text" },
           "resolvedFrom": { "label": "Resolved from", "format": "text" }
         }
       }

@@ -25,7 +25,7 @@ describe('risk scoring', () => {
 
 describe('sortDatasetItems', () => {
     it('orders scanned rows worst first and errors last', () => {
-        const base = { sources: ['explicit'] as PackageSource[], resolvedFrom: 'exact' as const, scannedAt: '2026-01-01T00:00:00.000Z' };
+        const base = { sources: ['explicit'] as PackageSource[], sourcesText: 'explicit', resolvedFrom: 'exact' as const, scannedAt: '2026-01-01T00:00:00.000Z' };
         const scanned = (name: string, riskScore: number): DatasetItem => ({
             ...base, status: 'scanned', package: name, version: '1.0.0', riskScore,
             riskLevel: riskLevelFor(riskScore), findings: [], findingCount: 0,

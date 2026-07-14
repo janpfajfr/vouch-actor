@@ -68,6 +68,7 @@ async function scanTarget(target: ResolvedTarget, options: ScanOptions, scannedA
             package: target.name,
             version: target.version,
             sources: target.sources,
+            sourcesText: target.sources.join(', '),
             resolvedFrom: target.resolvedFrom,
             riskScore,
             riskLevel: riskLevelFor(riskScore),
@@ -88,6 +89,7 @@ async function scanTarget(target: ResolvedTarget, options: ScanOptions, scannedA
             package: target.name,
             version: target.version,
             sources: target.sources,
+            sourcesText: target.sources.join(', '),
             resolvedFrom: target.resolvedFrom,
             error: {
                 code: errorCode(error),

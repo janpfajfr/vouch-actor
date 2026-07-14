@@ -53,6 +53,7 @@ export interface ScannedItem {
     package: string;
     version: string;
     sources: PackageSource[];
+    sourcesText: string;
     resolvedFrom: ResolvedFrom;
     riskScore: number;
     riskLevel: RiskLevel;
@@ -73,6 +74,7 @@ export interface ErrorItem {
     package: string;
     version?: string;
     sources: PackageSource[];
+    sourcesText: string;
     resolvedFrom?: ResolvedFrom;
     error: { code: string; message: string };
     scannedAt: string;

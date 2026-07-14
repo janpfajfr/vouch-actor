@@ -4,6 +4,7 @@ import type { RegistryClient } from './registry.js';
 import { resolveInput } from './resolve.js';
 import { scanTargets } from './scanner.js';
 import { sortDatasetItems } from './score.js';
+import { buildStatusMessage } from './status.js';
 import type { DatasetItem, ResolvedTarget, ScannerInput } from './types.js';
 
 export interface ActorAdapter {
@@ -20,23 +21,6 @@ interface RunDependencies {
     fetchRemote: (url: string) => Promise<Response>;
     queryOsv: (targets: ResolvedTarget[]) => Promise<Map<string, OsvVulnerability[]>>;
     now?: () => Date;
-}
-
-function summaryFor(items: DatasetItem[], capped: number, total: number, unresolved: number, notes: string[]): string {
-    const counts = { high: 0, medium: 0, low: 0, error: 0 };
-    items.forEach((item) => {
-        if (item.status === 'error') counts.error += 1;
-        else counts[item.riskLevel] += 1;
-    });
-    const prefix = capped > 0
-        ? `Scanned ${items.length} of ${total} packages, capped by maxPackages`
-        : `Scanned ${items.length} packages`;
-    const parts = (['high', 'medium', 'low'] as const)
-        .filter((level) => counts[level] > 0)
-        .map((level) => `${counts[level]} ${level}`);
-    if (unresolved > 0) parts.push(`${unresolved} unresolved`);
-    if (counts.error > 0) parts.push(`${counts.error} error${counts.error === 1 ? '' : 's'}`);
-    return [`${prefix}: ${parts.join(', ') || 'no results'}`, ...notes].join('. ');
 }
 
 export async function runActor(actor: ActorAdapter, dependencies: RunDependencies): Promise<void> {
@@ -91,6 +75,7 @@ export async function runActor(actor: ActorAdapter, dependencies: RunDependencie
         status: 'error',
         package: error.package,
         sources: error.sources,
+        sourcesText: error.sources.join(', '),
         error: { code: error.code, message: error.message },
         scannedAt,
     }));
@@ -101,7 +86,7 @@ export async function runActor(actor: ActorAdapter, dependencies: RunDependencie
     }
     await actor.pushData(items);
     const total = resolution.stats.deduplicated + resolution.errors.length;
-    const summary = summaryFor(items, resolution.stats.capped, total, resolution.stats.unresolved, notes);
+    const summary = buildStatusMessage(items, resolution.stats.capped, total, resolution.stats.unresolved, notes);
     await actor.setStatusMessage(summary);
 
     const explicitMissing = items.find((item) => item.status === 'error'
@@ -111,7 +96,10 @@ export async function runActor(actor: ActorAdapter, dependencies: RunDependencie
         await actor.fail(`Explicit package not found: ${explicitMissing.package}. ${summary}`);
         return;
     }
-    if (items.every(({ status }) => status === 'error')) {
+    const allErrorsAreNonExplicitMissingPackages = items.every((item) => item.status === 'error'
+        && item.error.code === 'PACKAGE_NOT_FOUND'
+        && !item.sources.includes('explicit'));
+    if (items.every(({ status }) => status === 'error') && !allErrorsAreNonExplicitMissingPackages) {
         await actor.fail(`All selected packages failed to scan. ${summary}`);
         return;
     }

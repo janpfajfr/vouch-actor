@@ -60,6 +60,7 @@ export interface RegistryVersion {
     name?: string;
     version?: string;
     scripts?: Record<string, string>;
+    optionalDependencies?: Record<string, string>;
     maintainers?: Array<{ name?: string; email?: string }>;
     deprecated?: string;
     dist?: { attestations?: unknown; signatures?: unknown[] };

@@ -6,6 +6,7 @@
   "description": "Scans npm packages for behavioral supply chain risk.",
   "version": "0.1",
   "buildTag": "latest",
+  "defaultMemoryMbytes": 512,
   "meta": {
     "templateId": "ts-empty",
     "generatedBy": "Codex with GPT-5"

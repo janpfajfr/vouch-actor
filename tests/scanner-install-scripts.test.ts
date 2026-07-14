@@ -46,6 +46,21 @@ describe('scanTargets install-script slice', () => {
         });
     });
 
+    it('joins multiple source labels for the dataset overview', async () => {
+        const [item] = await scanTargets([{
+            ...target('combined'),
+            sources: ['explicit', 'manifest'],
+        }], {
+            registry: registryWithScripts({}),
+            checks: ['installScripts'],
+            now: () => new Date('2026-07-13T00:00:00.000Z'),
+        });
+        expect(item).toMatchObject({
+            sources: ['explicit', 'manifest'],
+            sourcesText: 'explicit, manifest',
+        });
+    });
+
     it('emits an error row when required package metadata fails', async () => {
         const registry = {
             ...registryWithScripts({}),
@@ -62,6 +77,7 @@ describe('scanTargets install-script slice', () => {
             package: 'unavailable',
             version: '1.0.0',
             sources: ['explicit'],
+            sourcesText: 'explicit',
             resolvedFrom: 'exact',
             error: { code: 'REGISTRY_ERROR', message: 'registry timeout' },
             scannedAt: '2026-07-13T00:00:00.000Z',

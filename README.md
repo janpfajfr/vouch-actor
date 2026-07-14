@@ -23,6 +23,7 @@ This checks a package before installation and requires no local setup.
   "package": "left-pad",
   "version": "1.3.0",
   "sources": ["explicit"],
+  "sourcesText": "explicit",
   "resolvedFrom": "exact",
   "riskScore": 5,
   "riskLevel": "low",
@@ -53,6 +54,8 @@ This checks a package before installation and requires no local setup.
 ```
 
 The score is the sum of documented finding weights, capped at 100. This real `left-pad@1.3.0` run has one low-severity missing-provenance finding and one informational deprecation finding, so its score is 5. Download counts and scan timestamps vary by run.
+
+`resolvedFrom` explains how the exact scanned version was selected. `exact` means the input named that version directly, `tag` means a bare package name or npm dist-tag selected it, `range` means it was the newest version satisfying a semver range, and `lockfile` means the version came from a parsed `package-lock.json` entry.
 
 ## Use it from CI
 

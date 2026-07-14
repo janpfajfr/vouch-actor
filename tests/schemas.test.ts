@@ -9,6 +9,7 @@ async function readJson(path: string): Promise<Record<string, unknown>> {
 describe('Actor schemas', () => {
     it('links the input and default dataset schemas from actor.json', async () => {
         const actor = await readJson('.actor/actor.json');
+        expect(actor.defaultMemoryMbytes).toBe(512);
         expect(actor.input).toBe('./input_schema.json');
         expect(actor.output).toBe('./output_schema.json');
         expect(actor.storages).toEqual({ dataset: './dataset_schema.json' });
@@ -47,11 +48,26 @@ describe('Actor schemas', () => {
     it('defines a concise dataset overview view', async () => {
         const schema = await readJson('.actor/dataset_schema.json');
         const fields = schema.fields as Record<string, unknown>;
+        const properties = fields.properties as Record<string, Record<string, unknown>>;
         const views = schema.views as Record<string, Record<string, unknown>>;
         expect(fields.$schema).toBe('http://json-schema.org/draft-07/schema#');
+        expect(properties.sourcesText).toEqual({ type: 'string' });
+        expect(properties.resolvedFrom?.enum).toEqual(['exact', 'tag', 'range', 'lockfile']);
+        expect(properties.findings).toMatchObject({
+            type: 'array',
+            items: {
+                type: 'object',
+                required: ['check', 'severity', 'summary', 'detail'],
+            },
+        });
+        expect(properties.provenance).toMatchObject({ type: 'object', required: ['attested'] });
+        expect(properties.meta).toMatchObject({ type: 'object', required: ['maintainers', 'deprecated'] });
         expect(views.overview).toMatchObject({
-            transformation: { fields: ['package', 'version', 'status', 'riskScore', 'riskLevel', 'findingCount', 'sources', 'resolvedFrom'] },
-            display: { component: 'table' },
+            transformation: { fields: ['package', 'version', 'status', 'riskScore', 'riskLevel', 'findingCount', 'sourcesText', 'resolvedFrom'] },
+            display: {
+                component: 'table',
+                properties: { sourcesText: { label: 'Sources', format: 'text' } },
+            },
         });
     });
 });
