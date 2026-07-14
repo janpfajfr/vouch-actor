@@ -72,6 +72,8 @@ Store an Apify API token as the `APIFY_TOKEN` GitHub Actions secret, then add th
 
 The Actor resolves the manifest and supported lockfile, scans the selected dependencies, and finishes as `FAILED` if a scanned package meets `failThreshold`. Runs that breach `failThreshold` finish as `FAILED` by design; the run status message distinguishes threshold breaches from actual errors. An explicit `packages` entry that does not exist also fails the run as typo and typosquat protection. A manifest dependency that returns 404 remains visible as an error row because it may be a private package.
 
+This repository gates its own pull requests with the deployed Actor using the proposed branch's SHA-pinned `package.json`.
+
 With `package-lock.json`, rows use exact installed versions and answer "is what I have installed safe?" Without a parsed lockfile, direct dependency ranges resolve to the newest currently matching public version and answer "is what I would install now safe?" The `resolvedFrom` field records the mode for each row.
 
 See the current [Apify CLI command reference](https://docs.apify.com/cli/docs/next/reference) for authentication and invocation options.

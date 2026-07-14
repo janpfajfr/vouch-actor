@@ -1,0 +1,20 @@
+name: Supply chain gate
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan proposed dependencies
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          PACKAGE_JSON_URL: https://raw.githubusercontent.com/${{ github.event.pull_request.head.repo.full_name }}/${{ github.event.pull_request.head.sha }}/package.json
+        run: .github/scripts/supply-chain-gate.sh
