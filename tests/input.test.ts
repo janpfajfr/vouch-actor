@@ -32,6 +32,16 @@ describe('parseInput', () => {
         expect(() => parseInput({ packages: ['left-pad'], checks: ['licenses'] })).toThrow('checks');
     });
 
+    it('rejects an empty checks selection', () => {
+        expect(() => parseInput({ packages: ['left-pad'], checks: [] })).toThrow('checks');
+    });
+
+    it('rejects more than 500 explicit package entries', () => {
+        expect(() => parseInput({
+            packages: Array.from({ length: 501 }, (_, index) => `package-${index}`),
+        })).toThrow('packages');
+    });
+
     it('rejects non-http manifest URLs', () => {
         expect(() => parseInput({ packageJsonUrl: 'file:///tmp/package.json' })).toThrow('packageJsonUrl');
     });

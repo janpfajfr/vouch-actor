@@ -39,7 +39,10 @@ export interface ResolutionError {
 }
 
 function isUnsupportedRegistrySpec(spec: string): boolean {
-    return /^(?:workspace:|file:|link:|npm:|git(?:\+[^:]+)?:|https?:|github:|gitlab:|bitbucket:)/i.test(spec);
+    return /^(?:workspace:|file:|link:|npm:|git(?:\+[^:]+)?:|https?:|github:|gitlab:|bitbucket:)/i.test(spec)
+        || /^git@[^:]+:.+/i.test(spec)
+        || /^(?:\.{1,2}\/|\/|~\/)/.test(spec)
+        || /^[a-z0-9_.-]+\/[a-z0-9_.-]+(?:#.*)?$/i.test(spec);
 }
 
 interface Manifest {
@@ -56,6 +59,18 @@ interface ManifestUrls {
     packageLock: string;
     pnpmLock: string;
     yarnLock: string;
+}
+
+async function mapInBatches<T, R>(
+    items: T[],
+    mapper: (item: T) => Promise<R>,
+    concurrency = 5,
+): Promise<R[]> {
+    const results: R[] = [];
+    for (let offset = 0; offset < items.length; offset += concurrency) {
+        results.push(...await Promise.all(items.slice(offset, offset + concurrency).map(mapper)));
+    }
+    return results;
 }
 
 function urlsFromPackageJson(packageJson: string): ManifestUrls {
@@ -104,12 +119,13 @@ async function jsonFrom<T>(response: Response, label: string): Promise<T> {
 
 function parseSpec(spec: string): { name: string; requested: string } {
     if (spec.startsWith('@')) {
-        const separator = spec.indexOf('@', 1);
+        const scopeSeparator = spec.indexOf('/');
+        const separator = scopeSeparator < 0 ? -1 : spec.indexOf('@', scopeSeparator);
         return separator < 0
             ? { name: spec, requested: 'latest' }
             : { name: spec.slice(0, separator), requested: spec.slice(separator + 1) || 'latest' };
     }
-    const separator = spec.lastIndexOf('@');
+    const separator = spec.indexOf('@');
     return separator <= 0
         ? { name: spec, requested: 'latest' }
         : { name: spec.slice(0, separator), requested: spec.slice(separator + 1) || 'latest' };
@@ -136,6 +152,12 @@ function packageNameFromLockPath(path: string): string | undefined {
 }
 
 function mergeTargets(targets: ResolvedTarget[]): ResolvedTarget[] {
+    const resolutionPriority: Record<ResolvedFrom, number> = {
+        lockfile: 4,
+        exact: 3,
+        tag: 2,
+        range: 1,
+    };
     const merged = new Map<string, ResolvedTarget>();
     for (const target of targets) {
         const key = `${target.name}@${target.version}`;
@@ -144,6 +166,9 @@ function mergeTargets(targets: ResolvedTarget[]): ResolvedTarget[] {
             merged.set(key, { ...target, sources: [...target.sources] });
         } else {
             existing.sources = [...new Set([...existing.sources, ...target.sources])];
+            if (resolutionPriority[target.resolvedFrom] > resolutionPriority[existing.resolvedFrom]) {
+                existing.resolvedFrom = target.resolvedFrom;
+            }
         }
     }
     return [...merged.values()].sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`));
@@ -177,17 +202,36 @@ export async function resolveInput(input: ScannerInput, dependencies: ResolveDep
     let discovered = 0;
     let unresolved = 0;
 
-    for (const spec of input.packages ?? []) {
-        discovered += 1;
+    const explicitSpecs = input.packages ?? [];
+    discovered += explicitSpecs.length;
+    const explicitOutcomes = await mapInBatches(explicitSpecs, async (spec): Promise<{
+        target?: ResolvedTarget;
+        error?: ResolutionError;
+    }> => {
         const { name, requested } = parseSpec(spec);
+        if (isUnsupportedRegistrySpec(spec) || isUnsupportedRegistrySpec(name) || isUnsupportedRegistrySpec(requested)) {
+            return { error: {
+                package: name,
+                requested,
+                sources: ['explicit'],
+                code: 'UNSUPPORTED_SPEC',
+                message: `Unsupported non-registry dependency spec: ${spec}`,
+            } };
+        }
         try {
             const resolved = await resolveVersion(name, requested, dependencies.registry);
-            targets.push({ name, ...resolved, sources: ['explicit'] });
+            return { target: { name, ...resolved, sources: ['explicit'] } };
         } catch (error) {
-            unresolved += 1;
-            errors.push(toResolutionError(name, requested, 'explicit', error));
+            return { error: toResolutionError(name, requested, 'explicit', error) };
         }
-    }
+    });
+    explicitOutcomes.forEach((outcome) => {
+        if (outcome.target) targets.push(outcome.target);
+        if (outcome.error) {
+            unresolved += 1;
+            errors.push(outcome.error);
+        }
+    });
 
     if (input.packageJsonUrl) {
         const urls = manifestUrls(input.packageJsonUrl);
@@ -212,34 +256,45 @@ export async function resolveInput(input: ScannerInput, dependencies: ResolveDep
         }
 
         const lockEntries = packageLock?.packages ?? {};
-        let lockfileRangeFallbacks = 0;
-        for (const [name, constraint] of Object.entries(constraints)) {
-            discovered += 1;
-            const exact = lockEntries[`node_modules/${name}`]?.version;
-            if (exact) {
-                targets.push({ name, version: exact, sources: ['manifest'], resolvedFrom: 'lockfile' });
-                continue;
-            }
+        const constraintEntries = Object.entries(constraints);
+        discovered += constraintEntries.length;
+        const manifestOutcomes = await mapInBatches(constraintEntries, async ([name, constraint]): Promise<{
+            target?: ResolvedTarget;
+            error?: ResolutionError;
+            lockfileRangeFallback?: boolean;
+        }> => {
             if (isUnsupportedRegistrySpec(constraint)) {
-                unresolved += 1;
-                errors.push({
+                return { error: {
                     package: name,
                     requested: constraint,
                     sources: ['manifest'],
                     code: 'UNSUPPORTED_SPEC',
                     message: `Unsupported non-registry dependency spec: ${name}@${constraint}`,
-                });
-                continue;
+                } };
+            }
+            const exact = lockEntries[`node_modules/${name}`]?.version;
+            if (exact) {
+                return { target: { name, version: exact, sources: ['manifest'], resolvedFrom: 'lockfile' } };
             }
             try {
                 const resolved = await resolveVersion(name, constraint, dependencies.registry);
-                targets.push({ name, version: resolved.version, sources: ['manifest'], resolvedFrom: 'range' });
-                if (packageLock) lockfileRangeFallbacks += 1;
+                return {
+                    target: { name, version: resolved.version, sources: ['manifest'], resolvedFrom: 'range' },
+                    lockfileRangeFallback: Boolean(packageLock),
+                };
             } catch (error) {
-                unresolved += 1;
-                errors.push(toResolutionError(name, constraint, 'manifest', error));
+                return { error: toResolutionError(name, constraint, 'manifest', error) };
             }
-        }
+        });
+        let lockfileRangeFallbacks = 0;
+        manifestOutcomes.forEach((outcome) => {
+            if (outcome.target) targets.push(outcome.target);
+            if (outcome.error) {
+                unresolved += 1;
+                errors.push(outcome.error);
+            }
+            if (outcome.lockfileRangeFallback) lockfileRangeFallbacks += 1;
+        });
         if (lockfileRangeFallbacks > 0) {
             statusNotes.push(`package-lock.json lacked exact root entries for ${lockfileRangeFallbacks} direct ${lockfileRangeFallbacks === 1 ? 'dependency' : 'dependencies'}; resolved as latest-matching`);
         }

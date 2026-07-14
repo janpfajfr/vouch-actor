@@ -10,7 +10,23 @@ describe('Actor schemas', () => {
     it('links the input and default dataset schemas from actor.json', async () => {
         const actor = await readJson('.actor/actor.json');
         expect(actor.input).toBe('./input_schema.json');
+        expect(actor.output).toBe('./output_schema.json');
         expect(actor.storages).toEqual({ dataset: './dataset_schema.json' });
+    });
+
+    it('exposes the default dataset overview to API and MCP consumers', async () => {
+        const output = await readJson('.actor/output_schema.json');
+        expect(output).toMatchObject({
+            actorOutputSchemaVersion: 1,
+            title: 'npm Supply Chain Risk Scanner output',
+            properties: {
+                results: {
+                    type: 'string',
+                    title: 'Scan results',
+                    template: '{{links.apiDefaultDatasetUrl}}/items?view=overview',
+                },
+            },
+        });
     });
 
     it('defines every public input with safe bounds and defaults', async () => {

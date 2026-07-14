@@ -1,3 +1,5 @@
+import cvssCalculator from 'ae-cvss-calculator';
+
 import type { OsvVulnerability } from '../osv-client.js';
 import type { RegistryVersion } from '../registry.js';
 import type { Finding, Severity } from '../types.js';
@@ -47,13 +49,24 @@ function cvssV3BaseScore(vector: string): number | undefined {
     return Math.ceil(raw * 10) / 10;
 }
 
+export function cvssV4BaseScore(vector: string): number | undefined {
+    if (!vector.startsWith('CVSS:4.0/')) return undefined;
+    try {
+        const score = new cvssCalculator.Cvss4P0(vector).calculateScores().base;
+        return typeof score === 'number' && Number.isFinite(score) ? score : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 function severityFor(vulnerability: OsvVulnerability): Severity {
-    const numeric = vulnerability.severity
+    const scores = vulnerability.severity
         ?.map(({ score }) => {
             const direct = Number(score);
-            return Number.isFinite(direct) ? direct : cvssV3BaseScore(score);
+            return Number.isFinite(direct) ? direct : cvssV3BaseScore(score) ?? cvssV4BaseScore(score);
         })
-        .find((score) => Number.isFinite(score));
+        .filter((score): score is number => score !== undefined && Number.isFinite(score)) ?? [];
+    const numeric = scores.length > 0 ? Math.max(...scores) : undefined;
     if (numeric !== undefined) {
         if (numeric >= 9) return 'critical';
         if (numeric >= 7) return 'high';
@@ -61,6 +74,7 @@ function severityFor(vulnerability: OsvVulnerability): Severity {
         if (numeric > 0) return 'low';
     }
     const named = vulnerability.database_specific?.severity?.toLowerCase();
+    if (named === 'moderate') return 'medium';
     return named === 'critical' || named === 'high' || named === 'medium' || named === 'low'
         ? named
         : 'info';

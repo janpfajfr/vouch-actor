@@ -144,6 +144,72 @@ describe('resolveInput lockfile policy', () => {
         }));
     });
 
+    it.each([
+        ['alias@npm:real-package@^1.0.0', 'alias'],
+        ['local@file:../local', 'local'],
+        ['github:acme/package', 'github:acme/package'],
+        ['acme/package', 'acme/package'],
+        ['alias@acme/package#main', 'alias'],
+        ['git@github.com:acme/package.git', 'git'],
+        ['local@../local', 'local'],
+    ])('labels explicit non-registry spec %s as unsupported without a registry lookup', async (spec, expectedName) => {
+        let registryCalls = 0;
+        const registry = {
+            ...dependencies({}, {}).registry,
+            getPackument: async (name: string) => {
+                registryCalls += 1;
+                return packument(name, ['1.0.0']);
+            },
+        };
+        const result = await resolveInput(input({ packages: [spec] }), {
+            registry,
+            fetchRemote: dependencies({}, {}).fetchRemote,
+        });
+        expect(result.errors).toContainEqual(expect.objectContaining({
+            package: expectedName,
+            sources: ['explicit'],
+            code: 'UNSUPPORTED_SPEC',
+        }));
+        expect(registryCalls).toBe(0);
+    });
+
+    it('rejects a manifest npm alias before using its lockfile version', async () => {
+        const files = {
+            [`${base}package.json`]: { dependencies: { alias: 'npm:real-package@^1.0.0' } },
+            [`${base}package-lock.json`]: { packages: {
+                '': {},
+                'node_modules/alias': { version: '1.2.0' },
+            } },
+        };
+        const result = await resolveInput(input({ packageJsonUrl: 'https://github.com/acme/app' }), dependencies(files, {}));
+        expect(result.targets).toEqual([]);
+        expect(result.errors).toContainEqual(expect.objectContaining({
+            package: 'alias',
+            requested: 'npm:real-package@^1.0.0',
+            code: 'UNSUPPORTED_SPEC',
+        }));
+    });
+
+    it('prefers lockfile resolution metadata when identical exact targets merge', async () => {
+        const files = {
+            [`${base}package.json`]: { dependencies: { shared: '^1.0.0' } },
+            [`${base}package-lock.json`]: { packages: {
+                '': {},
+                'node_modules/shared': { version: '1.0.0' },
+            } },
+        };
+        const result = await resolveInput(input({
+            packages: ['shared@latest'],
+            packageJsonUrl: 'https://github.com/acme/app',
+        }), dependencies(files, { shared: ['1.0.0'] }));
+        expect(result.targets).toEqual([{
+            name: 'shared',
+            version: '1.0.0',
+            sources: ['explicit', 'manifest'],
+            resolvedFrom: 'lockfile',
+        }]);
+    });
+
     it('resolves before deduplicating and caps exact targets deterministically', async () => {
         const result = await resolveInput(input({ packages: ['lodash@4.17.20', 'lodash@4.17.21', 'lodash@4.17.20'], maxPackages: 1 }), dependencies({}, {
             lodash: ['4.17.20', '4.17.21'],
@@ -175,5 +241,25 @@ describe('resolveInput lockfile policy', () => {
         expect(result.errors).toEqual([expect.objectContaining({
             package: 'private', sources: ['manifest'], code: 'PACKAGE_NOT_FOUND',
         })]);
+    });
+
+    it('resolves registry constraints concurrently with at most five in flight', async () => {
+        let active = 0;
+        let maximum = 0;
+        const registry = {
+            ...dependencies({}, {}).registry,
+            getPackument: async (name: string) => {
+                active += 1;
+                maximum = Math.max(maximum, active);
+                await new Promise((resolve) => setTimeout(resolve, 2));
+                active -= 1;
+                return packument(name, ['1.0.0']);
+            },
+        };
+        const result = await resolveInput(input({
+            packages: Array.from({ length: 12 }, (_, index) => `package-${index}@latest`),
+        }), { registry, fetchRemote: dependencies({}, {}).fetchRemote });
+        expect(result.targets).toHaveLength(12);
+        expect(maximum).toBe(5);
     });
 });

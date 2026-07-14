@@ -100,15 +100,27 @@ export function createRegistryClient(dependencies: RegistryDependencies = {}) {
     };
     const warn = dependencies.warn ?? (() => undefined);
     const now = dependencies.now ?? (() => new Date());
+    const packuments = new Map<string, Promise<Packument>>();
+
+    const loadPackument = async (name: string): Promise<Packument> => {
+        const url = `https://registry.npmjs.org/${encodeURIComponent(name)}`;
+        const data = await jsonObject(await fetchWithRetry(url, {}, retryDependencies), 'npm registry');
+        if (typeof data.name !== 'string' || typeof data.versions !== 'object' || data.versions === null) {
+            throw new Error('npm registry returned an invalid packument');
+        }
+        return data as unknown as Packument;
+    };
 
     return {
-        async getPackument(name: string): Promise<Packument> {
-            const url = `https://registry.npmjs.org/${encodeURIComponent(name)}`;
-            const data = await jsonObject(await fetchWithRetry(url, {}, retryDependencies), 'npm registry');
-            if (typeof data.name !== 'string' || typeof data.versions !== 'object' || data.versions === null) {
-                throw new Error('npm registry returned an invalid packument');
-            }
-            return data as unknown as Packument;
+        getPackument(name: string): Promise<Packument> {
+            const cached = packuments.get(name);
+            if (cached) return cached;
+            const request = loadPackument(name);
+            packuments.set(name, request);
+            void request.catch(() => {
+                if (packuments.get(name) === request) packuments.delete(name);
+            });
+            return request;
         },
 
         async getWeeklyDownloads(name: string): Promise<number | undefined> {

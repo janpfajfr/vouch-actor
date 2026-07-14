@@ -72,4 +72,25 @@ describe('registry client', () => {
         const client = createRegistryClient({ fetch: fetchMock, sleep: async () => undefined });
         await expect(client.getAttestations('left-pad', '1.3.0')).resolves.toMatchObject({ attested: false });
     });
+
+    it('shares an in-flight packument request for the same package', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ name: 'shared', versions: {} }));
+        const client = createRegistryClient({ fetch: fetchMock, sleep: async () => undefined });
+        const [first, second] = await Promise.all([
+            client.getPackument('shared'),
+            client.getPackument('shared'),
+        ]);
+        expect(first).toBe(second);
+        expect(fetchMock).toHaveBeenCalledOnce();
+    });
+
+    it('evicts a failed packument request so a later call can retry', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(new Response('', { status: 404 }))
+            .mockResolvedValueOnce(jsonResponse({ name: 'eventual', versions: {} }));
+        const client = createRegistryClient({ fetch: fetchMock, sleep: async () => undefined });
+        await expect(client.getPackument('eventual')).rejects.toBeInstanceOf(HttpError);
+        await expect(client.getPackument('eventual')).resolves.toMatchObject({ name: 'eventual' });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
 });

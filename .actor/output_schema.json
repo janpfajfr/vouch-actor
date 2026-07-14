@@ -1,0 +1,13 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "npm Supply Chain Risk Scanner output",
+  "description": "Structured npm package risk results from the run's default dataset.",
+  "properties": {
+    "results": {
+      "type": "string",
+      "title": "Scan results",
+      "description": "Dataset rows ordered by risk score, including unresolved packages as error rows.",
+      "template": "{{links.apiDefaultDatasetUrl}}/items?view=overview"
+    }
+  }
+}

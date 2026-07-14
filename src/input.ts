@@ -24,6 +24,7 @@ export function parseInput(value: unknown): ScannerInput {
         if (!Array.isArray(input.packages) || input.packages.some((item) => typeof item !== 'string')) {
             throw new Error('packages must be an array of strings');
         }
+        if (input.packages.length > 500) throw new Error('packages must contain at most 500 entries');
         packages = input.packages.map((item) => (item as string).trim()).filter(Boolean);
         if (packages.length === 0) packages = undefined;
     }
@@ -49,7 +50,9 @@ export function parseInput(value: unknown): ScannerInput {
 
     let checks: CheckName[] = [...CHECK_NAMES];
     if (input.checks !== undefined) {
-        if (!Array.isArray(input.checks) || input.checks.some((check) => typeof check !== 'string' || !checkNames.has(check))) {
+        if (!Array.isArray(input.checks)
+            || input.checks.length === 0
+            || input.checks.some((check) => typeof check !== 'string' || !checkNames.has(check))) {
             throw new Error(`checks must contain only: ${CHECK_NAMES.join(', ')}`);
         }
         checks = [...new Set(input.checks as CheckName[])];

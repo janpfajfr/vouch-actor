@@ -103,7 +103,7 @@ The check uses public registry maintainers and publication timestamps. It report
 
 ### OSV vulnerabilities
 
-The Actor queries OSV in batches for exact npm name and version pairs and maps the available severity into findings. This provides known-vulnerability context, but it is not the Actor's differentiator and does not replace package-manager audit tooling or a full software composition analysis product.
+The Actor queries OSV in batches for exact npm name and version pairs and maps numeric, named, CVSS v3, and CVSS v4 severity data into findings. CVSS v4 calculation uses the pinned, zero-dependency `ae-cvss-calculator` package and is covered by a published FIRST example vector. This provides known-vulnerability context, but it is not the Actor's differentiator and does not replace package-manager audit tooling or a full software composition analysis product.
 
 ## Scoring
 
