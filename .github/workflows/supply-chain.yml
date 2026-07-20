@@ -16,5 +16,7 @@ jobs:
       - name: Scan proposed dependencies
         env:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          BASE_REPOSITORY: ${{ github.repository }}
           PACKAGE_JSON_URL: https://raw.githubusercontent.com/${{ github.event.pull_request.head.repo.full_name }}/${{ github.event.pull_request.head.sha }}/package.json
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
         run: .github/scripts/supply-chain-gate.sh
