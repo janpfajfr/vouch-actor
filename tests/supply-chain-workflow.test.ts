@@ -1,10 +1,24 @@
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
 const workflowPath = fileURLToPath(new URL('../.github/workflows/supply-chain.yml', import.meta.url));
 const scriptPath = fileURLToPath(new URL('../.github/scripts/supply-chain-gate.sh', import.meta.url));
+
+function runWithoutToken(headRepository: string, baseRepository: string) {
+    return spawnSync(scriptPath, [], {
+        encoding: 'utf8',
+        env: {
+            ...process.env,
+            APIFY_TOKEN: '',
+            BASE_REPOSITORY: baseRepository,
+            PACKAGE_JSON_URL: 'https://example.test/package.json',
+            PR_HEAD_REPOSITORY: headRepository,
+        },
+    });
+}
 
 describe('self-hosted supply chain workflow', () => {
     const workflow = readFileSync(workflowPath, 'utf8');
@@ -15,6 +29,8 @@ describe('self-hosted supply chain workflow', () => {
         expect(workflow).toContain('actions/checkout@v4');
         expect(workflow).toContain('github.event.pull_request.head.repo.full_name');
         expect(workflow).toContain('github.event.pull_request.head.sha');
+        expect(workflow).toContain('BASE_REPOSITORY: ${{ github.repository }}');
+        expect(workflow).toContain('PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}');
         expect(workflow).not.toContain('${{ github.sha }}');
         expect(workflow).toContain('.github/scripts/supply-chain-gate.sh');
         expect(workflow).not.toContain('api_call()');
@@ -28,9 +44,18 @@ describe('self-hosted supply chain workflow', () => {
         expect(script).toContain('osvVulns');
     });
 
-    it('neutral-skips pull requests without the token', () => {
-        expect(script).toContain("skipped: fork PRs don't receive secrets");
-        expect(script).toContain('[[ -z "${APIFY_TOKEN:-}" ]]');
+    it('neutral-skips fork pull requests without the token', () => {
+        const result = runWithoutToken('contributor/vouch-actor', 'janpfajfr/vouch-actor');
+
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain("skipped: fork PRs don't receive secrets");
+    });
+
+    it('fails same-repository pull requests without the token', () => {
+        const result = runWithoutToken('janpfajfr/vouch-actor', 'janpfajfr/vouch-actor');
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('configuration error: APIFY_TOKEN is unavailable for a same-repository PR');
     });
 
     it('waits for every terminal status with a bounded loop', () => {

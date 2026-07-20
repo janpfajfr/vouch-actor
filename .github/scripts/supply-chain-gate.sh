@@ -3,8 +3,13 @@
 set -euo pipefail
 
 if [[ -z "${APIFY_TOKEN:-}" ]]; then
-  echo "skipped: fork PRs don't receive secrets"
-  exit 0
+  if [[ "${PR_HEAD_REPOSITORY:-}" != "${BASE_REPOSITORY:-}" ]]; then
+    echo "skipped: fork PRs don't receive secrets"
+    exit 0
+  fi
+
+  echo "configuration error: APIFY_TOKEN is unavailable for a same-repository PR" >&2
+  exit 1
 fi
 
 : "${PACKAGE_JSON_URL:?PACKAGE_JSON_URL is required}"
