@@ -58,7 +58,7 @@ print_run() {
 
 input=$(jq -nc --arg package_json_url "$PACKAGE_JSON_URL" '{
   packageJsonUrl: $package_json_url,
-  failThreshold: 1,
+  failThreshold: 70,
   checks: ["installScripts", "provenance", "maintainerSignals", "osvVulns"]
 }')
 

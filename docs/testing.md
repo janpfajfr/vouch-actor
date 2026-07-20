@@ -53,16 +53,22 @@ A dependency discovered through `packageJsonUrl` that returns 404 from the publi
 
 The `.github/workflows/supply-chain.yml` workflow scans the proposed `package.json` from the pull request head repository and head SHA. It must not scan `github.sha`, which identifies GitHub's ephemeral merge commit for `pull_request` events.
 
-Positive-path status: pending verification on the workflow's first same-repository pull request. Mark this scenario verified only after the check is green and its log contains the Actor status message and Console run URL.
+Verification status: verified on 2026-07-20 with same-repository pull request #3.
+
+### Positive path
+
+- [GitHub Actions run 29734723111](https://github.com/janpfajfr/vouch-actor/actions/runs/29734723111) completed successfully after a real Actor scan.
+- [Actor run rJ3aW0rsnDIMlyGG1](https://console.apify.com/actors/runs/rJ3aW0rsnDIMlyGG1) finished as `SUCCEEDED`.
+- Observed status message: `Scanned 10 of 12 packages: 10 low, 2 errors`.
 
 Fork pull requests do not receive `APIFY_TOKEN`. The token guard must print `skipped: fork PRs don't receive secrets`, skip the Actor call, and leave the job successful instead of producing an authentication failure.
 
-### Negative test after merge
+A same-repository pull request without `APIFY_TOKEN` is a configuration error and must fail with `configuration error: APIFY_TOKEN is unavailable for a same-repository PR`. Automated tests cover both missing-token paths.
 
-1. Create a same-repository branch and temporarily change `failThreshold` in `.github/workflows/supply-chain.yml` from `70` to `1`.
-2. Open a pull request and wait for the supply chain gate.
-3. Confirm the check is red.
-4. Confirm the log prints a status message that names the threshold breach and a clickable `https://console.apify.com/actors/runs/<run-id>` URL. Record both in the QA screenshot or notes.
-5. Restore `failThreshold` to `70` and confirm the check returns to green before merging or closing the test pull request.
+### Negative path
 
-The threshold variant is preferred to adding a deliberately risky dependency because it is deterministic and does not create fake manifest or lockfile churn. Do not mark the negative path verified until both the red result and its self-explanatory output have been observed.
+- [GitHub Actions run 29734805993](https://github.com/janpfajfr/vouch-actor/actions/runs/29734805993) produced the expected red supply-chain check with a temporary `failThreshold` of 1.
+- [Actor run eTCDTdu0Rrhg8FMIS](https://console.apify.com/actors/runs/eTCDTdu0Rrhg8FMIS) finished as `FAILED`.
+- Observed status message: `Risk threshold 1 breached by @eslint/js@9.29.0 (5). Scanned 10 of 12 packages: 10 low, 2 errors`.
+
+The threshold variant is deterministic and avoids fake manifest or lockfile churn. The production workflow was restored to `failThreshold: 70` after this test.
